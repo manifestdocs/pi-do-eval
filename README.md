@@ -61,7 +61,7 @@ const result = await runEval({
   projectDir: "./projects/my-project",
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories in the attached PRD.",
-  piTddPath: myPlugin.extensionPath, // extension entry file
+  extensionPath: myPlugin.extensionPath,
 });
 
 // 3. Verify and score
@@ -170,36 +170,14 @@ Projects live in `projects/<name>/` and contain:
 
 | File | Description |
 |------|-------------|
-| `PRD.md` | Product requirements the extension must implement |
+| `PRD.md` | The task prompt the extension must implement |
 | `scaffold/` | Optional starter files copied into the working directory |
-| `config.ts` | Exports a `ProjectConfig` specifying variants and plugin name |
 
-Create `projects/<name>/PRD.md` with user stories, then create `projects/<name>/config.ts`:
-
-```typescript
-import type { ProjectConfig } from "pi-dont-do-eval";
-
-const config: ProjectConfig = {
-  name: "my-project",
-  description: "Brief description of the project",
-  prdFile: "PRD.md",
-  taskCount: 5,
-  plugin: "my-plugin",      // name of the plugin to use
-  features: ["auth", "api"],
-  variants: {
-    typescript: { language: "TypeScript" },
-    python: { language: "Python" },
-  },
-};
-
-export default config;
-```
-
-Optionally add `projects/<name>/scaffold/` with starter files.
+The framework copies both into the working directory before spawning Pi. How you organise and discover projects is up to your eval harness.
 
 ### Example projects
 
-These ship with a TDD plugin. Any extension can define its own projects with its own plugin.
+These ship with a TDD plugin as examples. Any extension can define its own projects with its own plugin.
 
 | Project | Description | Variants |
 |---------|-------------|----------|
@@ -239,25 +217,7 @@ An `index.json` at `runs/index.json` summarizes all runs for the report viewer (
 
 ## Configuring models
 
-Both worker and judge default to Pi's settings from `~/.pi/agent/settings.json`. Override programmatically via `RunOptions` and `JudgeOptions`:
-
-```typescript
-const result = await runEval({
-  projectDir: "./projects/stack-calc",
-  workDir: "/tmp/eval-run",
-  prompt: "Implement all user stories in the attached PRD.",
-  piTddPath: plugin.extensionPath, // extension entry file
-  provider: "anthropic",
-  model: "claude-sonnet-4-20250514",
-});
-
-const judgeResult = await runJudge({
-  workDir: "/tmp/eval-run",
-  prompt: plugin.buildJudgePrompt(prd, "/tmp/eval-run"),
-  provider: "anthropic",
-  model: "claude-haiku-4-5",
-});
-```
+Both worker and judge use Pi's settings from `~/.pi/agent/settings.json`. To change models, update your Pi configuration before running evals.
 
 ## Development
 
