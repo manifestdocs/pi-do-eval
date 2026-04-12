@@ -4,7 +4,8 @@
   "description": "General-purpose eval framework for Pi extensions",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./viewer": "./src/viewer.html"
   },
   "scripts": {
     "test": "vitest run",
