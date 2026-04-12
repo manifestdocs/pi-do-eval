@@ -71,9 +71,11 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
   let liveInterval: ReturnType<typeof setInterval> | undefined;
   let sessionStream: fs.WriteStream | undefined;
 
+  const startedAt = new Date().toISOString();
+  const startMs = Date.now();
+
   if (live) {
     fs.mkdirSync(live.runDir, { recursive: true });
-    const startedAt = new Date().toISOString();
     fs.writeFileSync(
       path.join(live.runDir, "status.json"),
       JSON.stringify({ status: "running", startedAt, ...live.meta }),
@@ -86,7 +88,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
     if (!live) return;
     const session = parseSessionLines(lines, opts.plugin);
     const snapshot = {
-      meta: { ...live.meta, startedAt: new Date().toISOString(), status: "running", durationMs: 0 },
+      meta: { ...live.meta, startedAt, status: "running", durationMs: Date.now() - startMs },
       session: { ...session, rawLines: undefined },
       lastUpdated: Date.now(),
     };
