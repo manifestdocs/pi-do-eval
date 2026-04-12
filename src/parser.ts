@@ -52,11 +52,20 @@ export function parseSessionLines(lines: string[], plugin?: EvalPlugin): EvalSes
   let outputTokens = 0;
   let startTime = 0;
   let endTime = 0;
+  let modelInfo: { model: string; provider: string } | undefined;
 
   for (const entry of entries) {
     const ts = parseTimestamp(entry);
     if (startTime === 0 && ts > 0) startTime = ts;
     if (ts > endTime) endTime = ts;
+
+    // Extract model info from first assistant message_start
+    if (entry.type === "message_start" && entry.message?.role === "assistant" && !modelInfo) {
+      const msg = entry.message as Record<string, unknown>;
+      if (typeof msg.model === "string" && typeof msg.provider === "string") {
+        modelInfo = { model: msg.model, provider: msg.provider };
+      }
+    }
 
     // Session files use "message", JSON mode uses "message_end"
     if ((entry.type !== "message" && entry.type !== "message_end") || !entry.message) continue;
@@ -117,5 +126,6 @@ export function parseSessionLines(lines: string[], plugin?: EvalPlugin): EvalSes
     endTime,
     exitCode: null,
     tokenUsage: { input: inputTokens, output: outputTokens },
+    modelInfo,
   };
 }

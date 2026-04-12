@@ -30,6 +30,7 @@ export interface EvalSession {
   endTime: number;
   exitCode: number | null;
   tokenUsage: { input: number; output: number };
+  modelInfo?: { model: string; provider: string };
 }
 
 // -- Verification --------------------------------------------------------------
