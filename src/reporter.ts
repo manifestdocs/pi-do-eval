@@ -1,0 +1,152 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { EvalPlugin, EvalReport } from "./types.js";
+
+export function writeReport(report: EvalReport, runDir: string) {
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, "report.json"), JSON.stringify(report, null, 2));
+  fs.writeFileSync(path.join(runDir, "report.md"), formatMarkdown(report));
+}
+
+interface RunIndexEntry {
+  dir: string;
+  project: string;
+  variant: string;
+  language: string;
+  status: string;
+  overall: number;
+  durationMs: number;
+  startedAt: string;
+  workerModel: string;
+  judgeModel?: string;
+}
+
+/** Update runs/index.json with a summary of all runs. */
+export function updateRunIndex(runsDir: string) {
+  const entries: RunIndexEntry[] = [];
+  if (!fs.existsSync(runsDir)) return;
+
+  for (const dir of fs.readdirSync(runsDir).sort().reverse()) {
+    const reportPath = path.join(runsDir, dir, "report.json");
+    if (!fs.existsSync(reportPath)) continue;
+    try {
+      const report: EvalReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+      entries.push({
+        dir,
+        project: report.meta.project,
+        variant: report.meta.variant,
+        language: report.meta.language,
+        status: report.meta.status,
+        overall: report.scores.overall,
+        durationMs: report.meta.durationMs,
+        startedAt: report.meta.startedAt,
+        workerModel: report.meta.workerModel,
+        judgeModel: report.meta.judgeModel,
+      });
+    } catch {}
+  }
+
+  fs.writeFileSync(path.join(runsDir, "index.json"), JSON.stringify(entries, null, 2));
+}
+
+export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string {
+  const { meta, scores, findings, judgeResult } = report;
+  const lines: string[] = [];
+
+  lines.push(`# Eval Report: ${meta.project} (${meta.variant})`);
+  lines.push("");
+  lines.push("| Field | Value |");
+  lines.push("|-------|-------|");
+  lines.push(`| Language | ${meta.language} |`);
+  lines.push(`| Worker Model | ${meta.workerModel} |`);
+  if (meta.judgeModel) lines.push(`| Judge Model | ${meta.judgeModel} |`);
+  lines.push(`| Status | ${meta.status} |`);
+  lines.push(`| Duration | ${(meta.durationMs / 1000).toFixed(1)}s |`);
+  lines.push("");
+
+  lines.push("## Deterministic Scores");
+  lines.push("");
+  lines.push("| Category | Score |");
+  lines.push("|----------|-------|");
+  for (const [key, value] of Object.entries(scores.deterministic)) {
+    lines.push(`| ${key} | ${value}/100 |`);
+  }
+  lines.push("");
+
+  if (scores.judge) {
+    lines.push("## Judge Scores");
+    lines.push("");
+    lines.push("| Category | Score |");
+    lines.push("|----------|-------|");
+    for (const [key, value] of Object.entries(scores.judge)) {
+      lines.push(`| ${key} | ${value}/100 |`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`**Overall: ${scores.overall}/100**`);
+  lines.push("");
+
+  // Plugin-provided summary
+  if (plugin?.formatSummary) {
+    const summary = plugin.formatSummary(report.session);
+    if (summary.length > 0) {
+      lines.push("## Session Summary");
+      lines.push("");
+      lines.push(...summary);
+      lines.push("");
+    }
+  } else {
+    lines.push("## Session Summary");
+    lines.push("");
+    lines.push(`- Tool calls: ${report.session.toolCalls.length}`);
+    lines.push(`- File writes: ${report.session.fileWrites.length}`);
+    lines.push(`- Plugin events: ${report.session.pluginEvents.length}`);
+    lines.push("");
+  }
+
+  if (findings.length > 0) {
+    lines.push("## Findings");
+    lines.push("");
+    for (const f of findings) lines.push(`- ${f}`);
+    lines.push("");
+  }
+
+  if (judgeResult) {
+    lines.push("## Judge Reasoning");
+    lines.push("");
+    for (const [key, reason] of Object.entries(judgeResult.reasons)) {
+      const score = judgeResult.scores[key];
+      lines.push(`**${key}${score !== undefined ? ` (${score}/100)` : ""}:** ${reason}`);
+      lines.push("");
+    }
+    if (judgeResult.findings.length > 0) {
+      lines.push("**Judge findings:**");
+      for (const f of judgeResult.findings) lines.push(`- ${f}`);
+      lines.push("");
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export function printSummary(report: EvalReport) {
+  const { meta, scores } = report;
+  const bar = (n: number) => {
+    const filled = Math.round(n / 5);
+    return "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
+  };
+
+  console.log(`\n${meta.project}/${meta.variant} (${meta.status})`);
+  for (const [key, value] of Object.entries(scores.deterministic)) {
+    console.log(`  ${key.padEnd(18)} ${bar(value)} ${value}`);
+  }
+  if (scores.judge) {
+    for (const [key, value] of Object.entries(scores.judge)) {
+      console.log(`  ${key.padEnd(18)} ${bar(value)} ${value} (judge)`);
+    }
+  }
+  console.log(`  ${"Overall".padEnd(18)} ${bar(scores.overall)} ${scores.overall}`);
+  const models = `worker: ${meta.workerModel}${meta.judgeModel ? ` | judge: ${meta.judgeModel}` : ""}`;
+  console.log(`  ${(meta.durationMs / 1000).toFixed(0)}s | ${models}\n`);
+}
