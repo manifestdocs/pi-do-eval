@@ -1,0 +1,23 @@
+{
+  "name": "pi-dont-do-eval",
+  "version": "0.1.0",
+  "description": "General-purpose eval framework for Pi extensions",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "view": "npx serve -l 3333 ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.11",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.1"
+  },
+  "license": "MIT"
+}
