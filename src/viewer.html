@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pi (don't) do Eval</title>
+  <title>Pi do Eval?</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
       --score-red: #f85149;
 
       /* Layout */
-      --sidebar-width: 300px;
+      --sidebar-width: 360px;
 
       /* Pico overrides */
       --pico-font-family: 'IBM Plex Sans', sans-serif;
@@ -71,14 +71,14 @@
 
     /* ---------- Sidebar ---------- */
     .sidebar {
-      background: var(--background-subtle);
+      background: var(--background);
       border-right: 1px solid var(--border-default);
       overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
     .sidebar-header {
-      padding: 0.7rem 0.85rem 0.55rem;
+      padding: 1.25rem 1.25rem 0.75rem;
       border-bottom: 1px solid var(--border-default);
       flex-shrink: 0;
       display: flex;
@@ -86,7 +86,7 @@
       gap: 0.5rem;
     }
     .sidebar-header h1 {
-      font-size: 0.85rem;
+      font-size: 1.4rem;
       font-weight: 600;
       margin: 0;
       letter-spacing: -0.01em;
@@ -109,16 +109,16 @@
       align-items: stretch;
     }
     .run-item {
-      padding: 0.45rem 0.85rem;
+      padding: 0.45rem 1.75rem;
       cursor: pointer;
       border-left: 2px solid transparent;
       transition: background-color 120ms ease, border-color 120ms ease;
     }
     .run-item:hover {
-      background-color: var(--background-muted);
+      background-color: var(--background-subtle);
     }
     .run-item.active {
-      background-color: var(--background-muted);
+      background-color: var(--background-subtle);
       border-left-color: var(--accent-green);
     }
     .run-item-top {
@@ -276,14 +276,38 @@
       text-align: right;
       flex-shrink: 0;
     }
-    .score-header {
+    .score-layout {
       display: flex;
-      align-items: baseline;
-      gap: 0.6rem;
+      align-items: stretch;
+      gap: 0;
     }
-    .score-header .badge {
-      font-size: 0.95rem;
-      padding: 0.1rem 0.45rem;
+    .score-bars {
+      flex: 1;
+      min-width: 0;
+    }
+    .score-overall {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 0.75rem 0.75rem 0.5rem;
+      background: var(--background);
+      flex-shrink: 0;
+      min-width: 5.5rem;
+    }
+    .score-overall-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .score-overall-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--foreground-subtle);
+      margin-top: 0.35rem;
     }
 
     /* ---------- Findings ---------- */
@@ -296,8 +320,8 @@
     .finding-item {
       font-size: 0.9rem;
       line-height: 1.55;
-      padding: 0.1rem 0;
-      margin-bottom: 0.3rem;
+      padding: 0.05rem 0;
+      margin-bottom: 0.1rem;
       color: var(--foreground-muted);
     }
     .finding-item::marker {
@@ -309,12 +333,13 @@
       max-width: 720px;
     }
     .reason-block {
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
     }
     .reason-block h4 {
       font-size: 0.9rem;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.4rem;
       margin-top: 0;
+      padding-top: 0.5rem;
     }
     .reason-block p {
       font-size: 0.9rem;
@@ -332,6 +357,7 @@
     }
     .filter-pill {
       font-size: 0.8rem;
+      font-weight: 600;
       padding: 0.2rem 0.6rem;
       background: transparent;
       border: 1px solid var(--foreground-subtle);
@@ -344,9 +370,9 @@
       color: var(--foreground);
     }
     .filter-pill.active {
-      background: var(--foreground);
+      background: var(--accent-blue);
       color: var(--background);
-      border-color: var(--foreground);
+      border-color: var(--accent-blue);
     }
 
     /* ---------- Unified timeline ---------- */
@@ -476,6 +502,34 @@
       margin: 0;
     }
 
+    /* ---------- Live badge ---------- */
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.05rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .badge-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent-green);
+      border-radius: 50% !important;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
     /* ---------- Inline toggle buttons (session detail expand/collapse) ---------- */
     .inline-toggle {
       margin-left: 0.35rem;
@@ -565,7 +619,7 @@
     <!-- Sidebar -->
     <nav class="sidebar" aria-label="Run list">
       <div class="sidebar-header">
-        <h1>Pi (don't) do Eval</h1>
+        <h1>Pi do Eval? 😈😇</h1>
         <small role="status" x-text="runs.length + ' run' + (runs.length !== 1 ? 's' : '')"></small>
       </div>
 
@@ -597,7 +651,8 @@
               @keydown.space.prevent="selectRun(run.dir)">
             <div class="run-item-top">
               <span class="run-item-name" x-text="run.project + '/' + run.variant"></span>
-              <span class="badge"
+              <span x-show="run.status === 'running'" class="badge-live">Live</span>
+              <span x-show="run.status !== 'running'" class="badge"
                     :style="'background-color:' + scoreColor(run.overall)"
                     x-text="run.overall"></span>
             </div>
@@ -672,30 +727,38 @@
         </div>
 
         <!-- Scores -->
-        <div class="content-card">
+        <div class="content-card" x-show="report?.scores">
           <section aria-label="Scores">
-            <div class="score-header">
-              <h3>Scores</h3>
-              <span class="badge"
-                    x-show="report?.scores?.overall != null"
-                    :style="'background-color:' + scoreColor(report?.scores?.overall)"
-                    x-text="report?.scores?.overall"></span>
-            </div>
-            <div class="score-section">
-              <template x-for="s in scoreRows" :key="s.label">
-                <div class="score-row">
-                  <span class="score-label" x-text="s.label"></span>
-                  <div class="score-bar-track" role="progressbar" :aria-valuenow="s.value" aria-valuemin="0" aria-valuemax="100" :aria-label="s.label + ' score'">
-                    <div class="score-bar-fill" :style="'width:' + s.value + '%; background-color:' + scoreColor(s.value)"></div>
-                  </div>
-                  <span class="score-value" :style="'color:' + scoreColor(s.value)" x-text="s.value"></span>
+            <h3>Scores</h3>
+            <div class="score-layout">
+              <div class="score-overall" x-show="report?.scores?.overall != null">
+                <span class="score-overall-value"
+                      :style="'color:' + scoreColor(report?.scores?.overall)"
+                      x-text="report?.scores?.overall"></span>
+                <span class="score-overall-label">Overall</span>
+              </div>
+              <div class="score-bars">
+                <div class="score-section">
+                  <template x-for="s in scoreRows" :key="s.label">
+                    <div class="score-row">
+                      <span class="score-label" x-text="s.label"></span>
+                      <div class="score-bar-track" role="progressbar" :aria-valuenow="s.value" aria-valuemin="0" aria-valuemax="100" :aria-label="s.label + ' score'">
+                        <div class="score-bar-fill" :style="'width:' + s.value + '%; background-color:' + scoreColor(s.value)"></div>
+                      </div>
+                      <span class="score-value" :style="'color:' + scoreColor(s.value)" x-text="s.value"></span>
+                    </div>
+                  </template>
                 </div>
-              </template>
+              </div>
             </div>
           </section>
+        </div>
+
+        <!-- Findings & Judge -->
+        <div class="content-card" x-show="allFindings.length > 0 || report?.judgeResult">
 
           <!-- Findings -->
-          <section x-show="allFindings.length > 0" aria-label="Findings" style="margin-top: 1.75rem;">
+          <section x-show="allFindings.length > 0" aria-label="Findings">
             <h3>Findings</h3>
             <ul class="findings-list">
               <template x-for="(f, i) in allFindings" :key="i">
@@ -705,31 +768,21 @@
           </section>
 
           <!-- Judge reasoning -->
-          <section x-show="report?.judgeResult" aria-label="Judge reasoning" style="margin-top: 1.75rem;">
+          <section x-show="report?.judgeResult" aria-label="Judge reasoning" :style="allFindings.length > 0 ? 'margin-top: 1.75rem' : ''">
             <h3>Judge Reasoning</h3>
             <div class="reason-list">
               <template x-for="entry in judgeReasonEntries" :key="entry[0]">
                 <div class="reason-block">
                   <h4>
                     <span x-text="formatScoreKey(entry[0])"></span>
-                    <span class="badge" style="margin-left: 0.35rem; font-size: 0.75rem;"
-                          :style="'background-color:' + scoreColor(report?.judgeResult?.scores?.[entry[0]])"
+                    <span class="badge"
+                          :style="'margin-left: 0.5rem; font-size: 0.75rem; position: relative; top: -0.1rem; background-color:' + scoreColor(report?.judgeResult?.scores?.[entry[0]])"
                           x-text="report?.judgeResult?.scores?.[entry[0]]"></span>
                   </h4>
                   <p x-text="entry[1]"></p>
                 </div>
               </template>
             </div>
-            <template x-if="report?.judgeResult?.findings?.length > 0">
-              <div style="margin-top: 1.5rem;">
-                <h3>Judge Findings</h3>
-                <ul class="findings-list">
-                  <template x-for="(f, i) in report.judgeResult.findings" :key="i">
-                    <li class="finding-item" x-text="f"></li>
-                  </template>
-                </ul>
-              </div>
-            </template>
           </section>
         </div>
 
@@ -842,6 +895,8 @@
         error: null,
         reportLoading: false,
         reportError: null,
+        _liveInterval: null,
+        _indexInterval: null,
 
         async init() {
           try {
@@ -866,11 +921,35 @@
                 this.selectRun(this.runs[0].dir);
               }
             }
+            this._startIndexPolling();
           } catch (e) {
             this.error = e.message || 'Failed to load run index.';
           } finally {
             this.loading = false;
           }
+        },
+
+        _startIndexPolling() {
+          if (this._indexInterval) clearInterval(this._indexInterval);
+          const hasRunning = this.runs.some(r => r.status === 'running');
+          if (!hasRunning) return;
+          this._indexInterval = setInterval(async () => {
+            try {
+              const resp = await fetch('runs/index.json');
+              if (resp.ok) {
+                this.runs = await resp.json();
+                this.runs.sort((a, b) => {
+                  const da = a.startedAt ? new Date(a.startedAt) : 0;
+                  const db = b.startedAt ? new Date(b.startedAt) : 0;
+                  return db - da;
+                });
+                if (!this.runs.some(r => r.status === 'running')) {
+                  clearInterval(this._indexInterval);
+                  this._indexInterval = null;
+                }
+              }
+            } catch {}
+          }, 5000);
         },
 
         async selectRun(dir) {
@@ -879,16 +958,59 @@
           this.report = null;
           this.reportLoading = true;
           this.reportError = null;
+          if (this._liveInterval) { clearInterval(this._liveInterval); this._liveInterval = null; }
+
+          const run = this.runs.find(r => r.dir === dir);
+          const isLive = run?.status === 'running';
 
           try {
-            const resp = await fetch(`runs/${dir}/report.json`);
-            if (!resp.ok) throw new Error(`Failed to load report: ${resp.status}`);
-            this.report = await resp.json();
+            if (isLive) {
+              await this._fetchLive(dir);
+              this._liveInterval = setInterval(() => this._pollLive(dir), 2000);
+            } else {
+              const resp = await fetch(`runs/${dir}/report.json`);
+              if (!resp.ok) throw new Error(`Failed to load report: ${resp.status}`);
+              this.report = await resp.json();
+            }
           } catch (e) {
             this.reportError = e.message || 'Failed to load report.';
           } finally {
             this.reportLoading = false;
           }
+        },
+
+        async _fetchLive(dir) {
+          const resp = await fetch(`runs/${dir}/live.json`);
+          if (resp.ok) {
+            this.report = await resp.json();
+          }
+        },
+
+        async _pollLive(dir) {
+          if (this.selectedDir !== dir) { clearInterval(this._liveInterval); this._liveInterval = null; return; }
+          // Check if run completed
+          try {
+            const reportResp = await fetch(`runs/${dir}/report.json`);
+            if (reportResp.ok) {
+              this.report = await reportResp.json();
+              clearInterval(this._liveInterval);
+              this._liveInterval = null;
+              // Update run status in sidebar
+              const run = this.runs.find(r => r.dir === dir);
+              if (run) { run.status = this.report.meta?.status || 'completed'; run.overall = this.report.scores?.overall || 0; }
+              this._startIndexPolling();
+              this._scrollTimeline();
+              return;
+            }
+          } catch {}
+          // Still running — fetch live.json
+          await this._fetchLive(dir);
+          this._scrollTimeline();
+        },
+
+        _scrollTimeline() {
+          const list = document.querySelector('.log-list');
+          if (list) list.scrollTop = list.scrollHeight;
         },
 
         // Computed-style getter for score rows
@@ -965,7 +1087,14 @@
         },
 
         get allFindings() {
-          return this.report?.findings || [];
+          const top = this.report?.findings || [];
+          const judge = this.report?.judgeResult?.findings || [];
+          const seen = new Set(top);
+          const merged = [...top];
+          for (const f of judge) {
+            if (!seen.has(f)) merged.push(f);
+          }
+          return merged;
         },
 
         get judgeReasonEntries() {
