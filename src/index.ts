@@ -1,5 +1,5 @@
 export { parseSessionLines } from "./parser.js";
-export { runEval, type RunOptions, type RunResult } from "./runner.js";
+export { runEval, type RunOptions, type RunResult, type LiveOptions } from "./runner.js";
 export { scoreSession } from "./scorer.js";
 export { runJudge, type JudgeOptions } from "./judge.js";
 export { defaultVerify } from "./verifier.js";

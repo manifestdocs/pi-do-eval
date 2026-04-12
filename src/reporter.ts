@@ -26,22 +26,45 @@ export function updateRunIndex(runsDir: string) {
   if (!fs.existsSync(runsDir)) return;
 
   for (const dir of fs.readdirSync(runsDir).sort().reverse()) {
-    const reportPath = path.join(runsDir, dir, "report.json");
-    if (!fs.existsSync(reportPath)) continue;
-    try {
-      const report: EvalReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
-      entries.push({
-        dir,
-        project: report.meta.project,
-        variant: report.meta.variant,
-        status: report.meta.status,
-        overall: report.scores.overall,
-        durationMs: report.meta.durationMs,
-        startedAt: report.meta.startedAt,
-        workerModel: report.meta.workerModel,
-        judgeModel: report.meta.judgeModel,
-      });
-    } catch {}
+    const dirPath = path.join(runsDir, dir);
+    if (!fs.statSync(dirPath).isDirectory()) continue;
+
+    const reportPath = path.join(dirPath, "report.json");
+    if (fs.existsSync(reportPath)) {
+      try {
+        const report: EvalReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+        entries.push({
+          dir,
+          project: report.meta.project,
+          variant: report.meta.variant,
+          status: report.meta.status,
+          overall: report.scores.overall,
+          durationMs: report.meta.durationMs,
+          startedAt: report.meta.startedAt,
+          workerModel: report.meta.workerModel,
+          judgeModel: report.meta.judgeModel,
+        });
+      } catch {}
+      continue;
+    }
+
+    // Live run — no report.json yet, but status.json exists
+    const statusPath = path.join(dirPath, "status.json");
+    if (fs.existsSync(statusPath)) {
+      try {
+        const status = JSON.parse(fs.readFileSync(statusPath, "utf-8"));
+        entries.push({
+          dir,
+          project: status.project ?? "",
+          variant: status.variant ?? "",
+          status: status.status ?? "running",
+          overall: 0,
+          durationMs: 0,
+          startedAt: status.startedAt ?? "",
+          workerModel: status.workerModel ?? "",
+        });
+      } catch {}
+    }
   }
 
   fs.writeFileSync(path.join(runsDir, "index.json"), JSON.stringify(entries, null, 2));
