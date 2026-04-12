@@ -22,6 +22,8 @@ function parseJudgeResponse(output: string) {
       }
     }
 
+    if (Object.keys(scores).length === 0) return undefined;
+
     return {
       scores,
       reasons,
@@ -81,5 +83,20 @@ describe("parseJudgeResponse", () => {
 
     expect(result?.scores).toEqual({ quality: 80 });
     expect(result?.reasons).toEqual({});
+  });
+
+  it("rejects JSON with no score fields", () => {
+    const input = '{"metadata": {"nested": true}, "findings": ["something"]}';
+    expect(parseJudgeResponse(input)).toBeUndefined();
+  });
+
+  it("treats stray numeric fields as scores if present", () => {
+    // This is acceptable — the raw stdout fallback that would surface
+    // session metadata like {"version":3} has been removed from runJudge.
+    // If the assistant text itself contains stray numerics, parsing them
+    // as scores is a reasonable best-effort.
+    const input = '{"version": 3}';
+    const result = parseJudgeResponse(input);
+    expect(result?.scores).toEqual({ version: 3 });
   });
 });

@@ -32,6 +32,8 @@ function parseJudgeResponse(output: string): JudgeResult | undefined {
       }
     }
 
+    if (Object.keys(scores).length === 0) return undefined;
+
     return {
       scores,
       reasons,
@@ -85,11 +87,13 @@ export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
 
     proc.on("close", () => {
       const assistantText = extractAssistantText(stdout);
-      const result = parseJudgeResponse(assistantText) ?? parseJudgeResponse(stdout);
+      if (!assistantText) {
+        finish({ ok: false, reason: stdout.trim() ? "parse_error" : "empty_response" });
+        return;
+      }
+      const result = parseJudgeResponse(assistantText);
       if (result) {
         finish({ ok: true, result });
-      } else if (!stdout.trim()) {
-        finish({ ok: false, reason: "empty_response" });
       } else {
         finish({ ok: false, reason: "parse_error" });
       }
