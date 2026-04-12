@@ -12,8 +12,6 @@ export type {
   JudgeResult,
   PluginScoreResult,
   PluginEvent,
-  ProjectConfig,
-  VariantConfig,
   VerifyResult,
   ToolCallRecord,
   FileWriteRecord,

@@ -8,9 +8,7 @@ export interface RunOptions {
   projectDir: string;
   workDir: string;
   prompt: string;
-  piTddPath: string;
-  provider?: string;
-  model?: string;
+  extensionPath: string;
   timeoutMs?: number;
   inactivityMs?: number;
 }
@@ -43,9 +41,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
   }
 
   // Build pi command
-  const args = ["-p", "--mode", "json", "-e", opts.piTddPath, "--no-session"];
-  if (opts.provider) args.push("--provider", opts.provider);
-  if (opts.model) args.push("--model", opts.model);
+  const args = ["-p", "--mode", "json", "-e", opts.extensionPath, "--no-session"];
   args.push(opts.prompt);
 
   const lines: string[] = [];

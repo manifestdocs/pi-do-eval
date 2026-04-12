@@ -1,21 +1,3 @@
-// -- Project configuration -----------------------------------------------------
-
-export interface ProjectConfig {
-  name: string;
-  description: string;
-  prdFile: string;
-  taskCount: number;
-  scaffoldDir?: string;
-  plugin: string;
-  features: string[];
-  variants: Record<string, VariantConfig>;
-}
-
-export interface VariantConfig {
-  language: string;
-  prdSuffix?: string;
-}
-
 // -- Session event parsing -----------------------------------------------------
 
 export interface ToolCallRecord {
@@ -97,7 +79,6 @@ export interface EvalReport {
   meta: {
     project: string;
     variant: string;
-    language: string;
     workerModel: string;
     judgeModel?: string;
     startedAt: string;
