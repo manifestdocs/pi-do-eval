@@ -406,7 +406,8 @@ export function pluginSkeleton(extensionName: string, extensionPath: string): st
   return `import * as path from "node:path";
 import type { EvalPlugin, EvalSession, VerifyResult } from "pi-do-eval";
 
-const EXTENSION_PATH = path.resolve(import.meta.dirname, "${extensionPath}");
+// extensionPath is stored relative to eval/, so resolve from the plugin file back through eval/.
+const EXTENSION_PATH = path.resolve(import.meta.dirname, "..", "${extensionPath}");
 
 const plugin: EvalPlugin = {
   name: "${extensionName}",

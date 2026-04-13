@@ -51,7 +51,7 @@ describe("runInit", () => {
     // Check plugin references the correct extension path
     const pluginContent = fs.readFileSync(path.join(evalDir, "plugins", "my-ext.ts"), "utf-8");
     expect(pluginContent).toContain('"my-ext"');
-    expect(pluginContent).toContain("../src/index.ts");
+    expect(pluginContent).toContain('path.resolve(import.meta.dirname, "..", "../src/index.ts")');
 
     // Check trial config references the plugin
     const trialConfig = fs.readFileSync(path.join(evalDir, "trials", "example", "config.ts"), "utf-8");
@@ -101,7 +101,7 @@ describe("runInit", () => {
 
     // Plugin should use fallback extension path
     const pluginContent = fs.readFileSync(path.join(evalDir, "plugins", "plain-pkg.ts"), "utf-8");
-    expect(pluginContent).toContain("../../src/index.ts");
+    expect(pluginContent).toContain('path.resolve(import.meta.dirname, "..", "../../src/index.ts")');
 
     mockExit.mockRestore();
   });

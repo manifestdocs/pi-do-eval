@@ -1,42 +1,73 @@
 # Pi, do Eval 😈😇
 
-A library for building eval harnesses for [Pi](https://github.com/anthropics/pi) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows. This library provides the building blocks (session parsing, scoring, judge orchestration, reporting) but does not run on its own. You write a script that imports from `pi-do-eval`, wires the pieces together, and defines what "good" looks like for your extension. No separate eval platform needed; evals run through your existing Pi setup using Pi itself as both the worker (running the extension under test) and the judge (evaluating output quality).
+A library for building eval harnesses for [Pi](https://github.com/anthropics/pi) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows.
+
+`pi-do-eval` gives you the building blocks:
+
+- Run Pi with the extension under test
+- Parse the JSONL session into tool calls, file writes, and plugin events
+- Run deterministic verification
+- Run a second Pi session as an LLM judge
+- Score and report the result
+
+It also ships a small scaffold command, `pi-do-eval init`, which generates a working eval harness you can customize.
 
 ## How it works
 
-1. Spawns `pi -p --mode json -e <extensionPath>` with the extension under test
-2. Captures JSONL events: tool calls, file writes, plugin-specific state changes
-3. After the session completes, the plugin optionally runs independent verification
-4. Spawns `pi -p --mode json --no-extensions` as the judge to evaluate output quality
-5. Plugin scores and judge scores are combined into a weighted final report
+1. Your harness spawns `pi -p --mode json -e <extensionPath>` with the extension under test.
+2. `pi-do-eval` parses the JSONL session into tool calls, file writes, and optional plugin-specific events.
+3. Your plugin can run independent verification after the worker session completes.
+4. Your harness can spawn `pi -p --mode json --no-extensions` as a judge.
+5. Deterministic plugin scores and judge scores are combined into a weighted final report.
 
-The eval prompt is deliberately minimal; the extension's system prompt must drive the behavior on its own.
+The eval prompt is deliberately minimal; the extension's own system prompt should drive the behavior.
 
-## Getting started
+## Quick Start
+
+The easiest way to get a functional harness is to scaffold one from the root of your Pi extension repo:
 
 ```bash
-npm install pi-do-eval
+npx pi-do-eval init
+cd eval
+npm install
+npm run eval -- list
+npm run eval -- run --trial example --variant default
+npm run view
 ```
 
-Building an eval harness has three steps:
+`pi-do-eval init` creates:
 
-1. **Write a plugin** that defines how to score your extension
-2. **Create trials** (tasks that put the extension on trial)
-3. **Write a run script** that wires the pipeline together
+```text
+eval/
+  package.json
+  tsconfig.json
+  eval.config.ts
+  eval.ts
+  plugins/
+    <your-extension>.ts
+  trials/
+    example/
+      config.ts
+      task.md
+```
 
-## Step 1: Write a plugin
+The generated `eval.ts` is a complete harness: it creates timestamped run directories, uses a fresh `workdir/` for each run, writes reports, updates the viewer index, and wires in live snapshots for the viewer.
 
-The plugin is where you define what "good" looks like for your extension. It implements the `EvalPlugin` interface:
+If you want a real example beyond the scaffold, see the `eval/` directory in [pi-tdd](https://github.com/manifestdocs/pi-tdd). The rest of this README explains the lower-level APIs the scaffold uses.
+
+## Plugin API
+
+The plugin is where you define what "good" looks like for your extension. It implements `EvalPlugin`:
 
 ```typescript
 interface EvalPlugin {
   name: string;
-  extensionPath: string;                // path to the Pi extension under test
+  extensionPath: string;
 
   // Optional: extract domain events from tool results
   parseEvent?(toolName: string, resultText: string, timestamp: number): PluginEvent[];
 
-  // Optional: classify files (e.g. "test", "source", "config")
+  // Optional: classify files (for example "test", "source", "config")
   classifyFile?(filePath: string): string;
 
   // Required: deterministic scoring from parsed session data
@@ -45,7 +76,7 @@ interface EvalPlugin {
   // Required: build the prompt sent to the LLM judge
   buildJudgePrompt(taskDescription: string, workDir: string): string;
 
-  // Optional: run independent verification (e.g. execute tests, lint)
+  // Optional: run independent verification (for example tests, lint, build)
   verify?(workDir: string): VerifyResult;
 
   // Optional: custom summary lines for reports
@@ -53,31 +84,31 @@ interface EvalPlugin {
 }
 ```
 
-`scoreSession` returns deterministic scores, their weights, and human-readable findings:
+`scoreSession` returns deterministic scores, weights, and findings:
 
 ```typescript
 interface PluginScoreResult {
-  scores: Record<string, number>;   // e.g. { correctness: 85, structure: 70 }
-  weights: Record<string, number>;  // e.g. { correctness: 0.5, structure: 0.3 }
-  findings: string[];               // e.g. ["Missing error handling in parser module"]
+  scores: Record<string, number>;
+  weights: Record<string, number>;
+  findings: string[];
 }
 ```
 
-`buildJudgePrompt` receives the task description and working directory, and produces the prompt for a second Pi session (with no extensions) that evaluates output quality. The judge returns JSON with scores, reasons, and findings.
-
 ### Example plugin
 
-Create a file in your own repo (e.g. `eval/plugin.ts`) that exports an `EvalPlugin`. Set `extensionPath` to the Pi extension's entry file, implement `scoreSession` with deterministic checks, and implement `buildJudgePrompt` with evaluation criteria.
+If you use the scaffold, your plugin will live at `eval/plugins/<name>.ts`. Resolve `extensionPath` to an absolute path from that file. `runEval` does not rewrite it relative to `workDir`.
 
 ```typescript
+import * as path from "node:path";
 import type { EvalPlugin } from "pi-do-eval";
 
 export const plugin: EvalPlugin = {
   name: "my-extension",
-  extensionPath: "../my-extension/src/index.ts",
+  extensionPath: path.resolve(import.meta.dirname, "../../src/index.ts"),
 
   classifyFile(filePath) {
     if (filePath.includes(".test.") || filePath.includes("_test.")) return "test";
+    if (/package\.json$|tsconfig|\.gitignore$/.test(filePath)) return "config";
     return "source";
   },
 
@@ -86,13 +117,10 @@ export const plugin: EvalPlugin = {
     const weights: Record<string, number> = {};
     const findings: string[] = [];
 
-    // Score based on verification results
     scores.correctness = verify.passed ? 100 : 0;
     weights.correctness = 0.5;
 
-    // Score based on session analysis
-    const fileCount = session.fileWrites.length;
-    scores.productivity = Math.min(100, fileCount * 10);
+    scores.productivity = Math.min(100, session.fileWrites.length * 10);
     weights.productivity = 0.2;
 
     return { scores, weights, findings };
@@ -100,108 +128,174 @@ export const plugin: EvalPlugin = {
 
   buildJudgePrompt(taskDescription, workDir) {
     return [
-      "Evaluate the implementation quality.",
-      `Task:\n${taskDescription}`,
-      `Working directory: ${workDir}`,
-      "Return JSON: { quality: <0-100>, quality_reason: '...', findings: [...] }",
-    ].join("\n\n");
+      "Evaluate the implementation quality. Respond with ONLY a JSON object.",
+      "",
+      "## Task",
+      taskDescription,
+      "",
+      "## Working Directory",
+      workDir,
+      "",
+      'Return {"quality": <0-100>, "quality_reason": "...", "findings": ["..."]}',
+    ].join("\n");
   },
 };
 ```
 
-## Step 2: Create trials
+## Trials
 
-A trial is a self-contained task that puts the extension on trial. Each trial tests whether the extension can handle a specific scenario. The framework does not enforce any directory layout; how you organize and discover trials is up to your eval harness.
+A trial is a self-contained task that puts the extension on trial. The library itself only assumes one convention:
 
-The one convention the framework provides is **starter files**: if you pass a `trialDir` to `runEval`, it copies any files from `trialDir/scaffold/` into the working directory before spawning Pi. This resets the working directory to a known starting state for each run, so trials are reproducible. Use this for boilerplate the agent shouldn't have to generate (e.g. `package.json`, config files, directory structure).
+- If `trialDir/scaffold/` exists, `runEval` copies those files into `workDir` before spawning Pi.
 
-A typical trial directory:
+That is a copy step, not a reset step. `runEval` does not delete leftovers from a previous run, so reproducibility depends on using a fresh `workDir` each time or cleaning it yourself. The scaffolded harness solves this by creating a new timestamped `workdir/` for every run.
 
-```
+A typical trial in the scaffolded harness looks like:
+
+```text
 trials/stack-calc/
-  task.md              # prompt describing what the agent should build
-  scaffold/            # optional starter files, copied into workDir
+  config.ts
+  task.md
+  scaffold/
     package.json
     tsconfig.json
 ```
 
-Beyond that, your harness decides what else lives in a trial directory.
+Outside the scaffold, you can organize trials however you want. The only thing `runEval` needs is a `trialDir`.
 
-### Example trials
+## Build Your Own Runner
 
-The [pi-tdd](https://github.com/manifestdocs/pi-tdd) extension includes a set of example trials. Any extension can define its own trials with its own plugin.
-
-| Trial | Description | Variants |
-|---------|-------------|----------|
-| `stack-calc` | Stack-based calculator | TS, Python, Go |
-| `temp-api` | Temperature conversion API | Python, TS, Go |
-| `todo-cli` | CLI todo manager | Rust, Go, TS |
-| `word-freq` | Word frequency counter | Go, Python, TS |
-| `fullstack-notes` | Notes app monorepo | TS |
-| `fizzbuzz-polyglot` | FizzBuzz with custom rules | C, TS, Ruby |
-
-## Step 3: Write a run script
-
-With your plugin and trials in place, write a script (e.g. `eval/run.ts`) that orchestrates the pipeline:
+If you do not want to use `pi-do-eval init`, you can wire the pieces together yourself. The example below is intentionally complete enough to produce a functional run directory and viewer index.
 
 ```typescript
-import { runEval, runJudge, scoreSession, defaultVerify, writeReport, printSummary } from "pi-do-eval";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import {
+  defaultVerify,
+  printSummary,
+  runEval,
+  runJudge,
+  scoreSession,
+  updateRunIndex,
+  writeReport,
+} from "pi-do-eval";
 import { plugin } from "./plugin.js";
 
-const taskDescription = fs.readFileSync("./trials/my-trial/task.md", "utf-8");
+const RUNS_DIR = path.resolve("runs");
+const trialDir = path.resolve("trials/my-trial");
+const taskPath = path.join(trialDir, "task.md");
+const taskDescription = fs.readFileSync(taskPath, "utf-8");
 
-// 1. Run the extension against a trial
+const runName = `${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}-my-trial-default`;
+const runDir = path.join(RUNS_DIR, runName);
+const workDir = path.join(runDir, "workdir");
+fs.mkdirSync(workDir, { recursive: true });
+
 const result = await runEval({
-  trialDir: "./trials/my-trial",
-  workDir: "/tmp/eval-run",
+  trialDir,
+  workDir,
   prompt: taskDescription,
   extensionPath: plugin.extensionPath,
+  plugin,
+  live: {
+    runDir,
+    runsDir: RUNS_DIR,
+    meta: { trial: "my-trial", variant: "default" },
+  },
 });
 
-// 2. Verify, judge, and score
-const verify = plugin.verify?.("/tmp/eval-run") ?? defaultVerify();
+if (result.stderr) fs.writeFileSync(path.join(runDir, "stderr.txt"), result.stderr);
+fs.writeFileSync(path.join(runDir, "session.jsonl"), result.session.rawLines.join("\n"));
+
+const verify = plugin.verify?.(workDir) ?? defaultVerify();
 const judgeOutcome = await runJudge({
-  workDir: "/tmp/eval-run",
-  prompt: plugin.buildJudgePrompt(taskDescription, "/tmp/eval-run"),
+  workDir,
+  prompt: plugin.buildJudgePrompt(taskDescription, workDir),
 });
+
 const scores = scoreSession({
   session: result.session,
   verify,
   plugin,
   judgeResult: judgeOutcome.ok ? judgeOutcome.result : undefined,
 });
+
+const pluginResult = plugin.scoreSession(result.session, verify);
+const judgeFailure = "reason" in judgeOutcome ? judgeOutcome.reason : undefined;
+const findings = [...pluginResult.findings];
+if (!verify.passed) findings.push("Verification failed");
+if (result.status !== "completed") findings.push(`Session ended with status: ${result.status}`);
+if (judgeOutcome.ok) findings.push(...judgeOutcome.result.findings);
+if (judgeFailure) findings.push(`Judge failed: ${judgeFailure}`);
+
+const report = {
+  meta: {
+    trial: "my-trial",
+    variant: "default",
+    workerModel: result.session.modelInfo
+      ? `${result.session.modelInfo.provider}/${result.session.modelInfo.model}`
+      : "default",
+    ...(judgeOutcome.ok ? { judgeModel: "default" } : {}),
+    startedAt: new Date(result.session.startTime).toISOString(),
+    durationMs: result.session.endTime - result.session.startTime,
+    status: result.status,
+  },
+  scores,
+  ...(judgeOutcome.ok ? { judgeResult: judgeOutcome.result } : {}),
+  session: { ...result.session, rawLines: [] },
+  findings,
+};
+
+writeReport(report, runDir);
+updateRunIndex(RUNS_DIR);
+printSummary(report);
 ```
 
 ## Scoring
 
-Scores come from two sources, combined into a weighted average:
+Scores come from two sources:
 
-**Deterministic** (from the plugin's `scoreSession`):
-- Extension-specific metrics defined by the plugin
-- Correctness via independent verification (if the plugin implements `verify`)
+**Deterministic**
+- Anything your plugin returns from `scoreSession`
+- Independent verification such as tests, lint, or build status
 
-**LLM Judge** (Pi as evaluator, no extensions loaded):
-- Quality criteria defined by the plugin's `buildJudgePrompt`
-- Judge scores that lack explicit weights default to 0.1
+**LLM Judge**
+- Anything returned by `runJudge`
+- Judge scores without an explicit matching weight default to `0.1`
 
-The overall score is a weighted average of all deterministic and judge scores.
+The overall score is the weighted average of every score that has a weight.
 
-## Run output
+## Reports And Viewer
 
-Each run creates a timestamped directory under `runs/` containing:
+The library does not create a `runs/` directory by itself. That is a harness convention.
 
-| File | Description |
-|------|-------------|
-| `report.json` | Structured scores (deterministic + judge) |
-| `report.md` | Human-readable results with judge reasoning |
-| `session.jsonl` | Raw Pi session for debugging |
-| `workdir/` | The working directory the agent operated in |
+If you follow the scaffolded `eval.ts` pattern, a typical run directory looks like:
 
-An `index.json` at `runs/index.json` summarizes all runs for the report viewer. Start the viewer with `npm run view` (serves at `localhost:3333`). The viewer auto-refreshes the run index and polls live snapshots for in-progress runs.
+| File | Written by | Description |
+|------|------------|-------------|
+| `report.json` | `writeReport()` | Structured scores and metadata |
+| `report.md` | `writeReport()` | Human-readable report |
+| `session.jsonl` | your harness | Raw Pi session for debugging |
+| `workdir/` | your harness | The working directory the agent operated in |
+| `stderr.txt` | optional | Worker stderr, if you choose to persist it |
 
-## Live mode
+`updateRunIndex(runsDir)` writes `runs/index.json`, which the viewer reads.
 
-Pass a `live` option to `runEval` to stream progress while a run is in flight. The runner writes periodic snapshots that the report viewer can poll, so you can watch tool calls and file writes accumulate in real time.
+If you want the same `npm run view` workflow as the scaffold, use this script in your harness package:
+
+```json
+{
+  "scripts": {
+    "view": "ln -sf node_modules/pi-do-eval/src/viewer.html index.html && npx serve -S -l 3333 ."
+  }
+}
+```
+
+That serves the harness root at `http://localhost:3333`, with the viewer at `/` and `runs/index.json` in the location the viewer expects.
+
+## Live Mode
+
+Pass `live` to `runEval` to stream progress while a run is in flight:
 
 ```typescript
 const result = await runEval({
@@ -209,16 +303,17 @@ const result = await runEval({
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
+  plugin: myPlugin,
   live: {
-    runDir: "./runs/2026-04-12T14-00-00Z",   // where live artifacts are written
-    runsDir: "./runs",                         // parent dir; index.json is updated here
-    intervalMs: 2000,                          // snapshot frequency (default: 2000)
+    runDir: "./runs/2026-04-12T14-00-00Z",
+    runsDir: "./runs",
+    intervalMs: 2000,
     meta: { trial: "my-trial", variant: "ts", workerModel: "claude-sonnet-4" },
   },
 });
 ```
 
-While the run is active, the `runDir` contains:
+While the run is active, `runDir` contains:
 
 | File | Description |
 |------|-------------|
@@ -226,9 +321,9 @@ While the run is active, the `runDir` contains:
 | `session.jsonl` | JSONL events streamed as they arrive |
 | `live.json` | Periodic parsed session snapshot for the viewer |
 
-The run index (`runs/index.json`) includes live runs so they appear in the viewer immediately. Once the run completes, write the final report as usual; the viewer picks up `report.json` and stops polling.
+`runEval` writes those live artifacts only when `live` is enabled. Final reports still come from your harness calling `writeReport()`.
 
-## Configuring models
+## Configuring Models
 
 Both `runEval` and `runJudge` accept `provider`, `model`, and `thinking` options that map directly to Pi CLI flags:
 
@@ -238,6 +333,7 @@ const result = await runEval({
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
+  plugin: myPlugin,
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
   thinking: "enabled",
@@ -253,17 +349,19 @@ const judgeResult = await runJudge({
 
 When omitted, Pi uses its defaults from `~/.pi/agent/settings.json`.
 
-The parser automatically extracts model and provider info from the session's `message_start` events, so `EvalSession.modelInfo` and report metadata reflect which model actually ran, regardless of how it was configured.
+For worker sessions, the parser extracts the actual model/provider from `message_start` events and stores them on `EvalSession.modelInfo`. The scaffolded harness uses that for worker report metadata.
+
+Judge metadata is different: `runJudge` currently returns scores, reasons, and findings, but not parsed model info. The scaffolded harness records the configured judge model string in report metadata.
 
 ## Sandboxing
 
-Extensions run in eval can execute arbitrary code (file writes, shell commands, network requests). Sandboxing constrains the Pi subprocess so it can only access paths you explicitly allow.
+Extensions under eval can execute arbitrary code. Sandboxing constrains the Pi subprocess so it can only access paths you explicitly allow.
 
-pi-do-eval uses [ai-jail](https://github.com/anthropics/ai-jail), a lightweight wrapper around OS-native sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux). Unlike Docker, there is no VM or container runtime involved: processes run natively with kernel-enforced restrictions, so startup cost is near-zero and throughput is unaffected.
+`pi-do-eval` uses [ai-jail](https://github.com/anthropics/ai-jail), a lightweight wrapper around OS-native sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux).
 
 ### Installing ai-jail
 
-ai-jail is a separate tool. Install it before enabling the sandbox option:
+Install it before enabling sandboxing:
 
 ```bash
 # macOS
@@ -273,7 +371,7 @@ brew install ai-jail
 cargo install ai-jail
 ```
 
-If ai-jail is not on `PATH`, pi-do-eval prints a single warning to stderr and runs unsandboxed. Your evals still work; you just lose the isolation.
+If `ai-jail` is not on `PATH`, `pi-do-eval` prints a warning and runs unsandboxed.
 
 ### Enabling the sandbox
 
@@ -285,6 +383,7 @@ const result = await runEval({
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
+  plugin: myPlugin,
   sandbox: true,
 });
 
@@ -295,7 +394,7 @@ const judgeResult = await runJudge({
 });
 ```
 
-With `sandbox: true`, the worker gets read-write access to `workDir` (it needs to create files) and the judge gets read-only access (it only inspects output). Network is allowed by default since both processes need to reach the LLM API.
+With `sandbox: true`, the worker gets read-write access to `workDir` and the judge gets read-only access. Network is allowed by default so the processes can reach the LLM API.
 
 ### Sandbox options
 
@@ -307,10 +406,11 @@ const result = await runEval({
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
+  plugin: myPlugin,
   sandbox: {
-    extraRwPaths: ["/tmp/shared-cache"],     // additional read-write paths
-    extraRoPaths: ["/usr/local/lib/node"],    // additional read-only paths
-    lockdown: true,                           // block all network access
+    extraRwPaths: ["/tmp/shared-cache"],
+    extraRoPaths: ["/usr/local/lib/node"],
+    lockdown: true,
   },
 });
 ```
@@ -319,18 +419,18 @@ const result = await runEval({
 |--------|------|---------|-------------|
 | `extraRwPaths` | `string[]` | `[]` | Additional paths the process can read and write |
 | `extraRoPaths` | `string[]` | `[]` | Additional paths the process can read |
-| `lockdown` | `boolean` | `false` | Block network access (useful when the extension should work offline) |
+| `lockdown` | `boolean` | `false` | Block network access |
 
-> **Warning**: `lockdown: true` blocks all outbound network requests. Both the worker and the judge need network access to call the LLM API, so only enable this if the extension and model are running locally.
+`lockdown: true` blocks all outbound network requests. Both the worker and the judge usually need network access to call the LLM API, so only use this if the extension and model are running locally.
 
-## See also
+## See Also
 
-[pi-tdd](https://github.com/manifestdocs/pi-tdd) is a TDD enforcement extension for Pi that uses pi-do-eval for its eval suite. It's a good example of a real plugin, trial set, and scoring implementation built on this framework.
+- [pi-tdd](https://github.com/manifestdocs/pi-tdd): a real extension with a full `eval/` harness built on `pi-do-eval`
 
 ## Development
 
 ```bash
-npm test          # Run framework tests (vitest)
-npm run lint      # Biome lint + format check
-npm run lint:fix  # Auto-fix lint issues
+npm test
+npm run lint
+npm run lint:fix
 ```
