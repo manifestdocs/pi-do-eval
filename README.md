@@ -22,17 +22,22 @@ It ships a small scaffold command, `pi-do-eval init`, which generates a working 
 
 Note: The eval prompt is deliberately minimal; the extension's own system prompt should drive the behavior.
 
-## Quick Start
+## Getting Started
 
-The easiest way to get a functional harness is to scaffold one from the root of your Pi extension repo:
+`pi-do-eval init` is the fastest way to scaffold a harness once you already have a Pi extension repo. It is not a zero-config demo: `pi-do-eval` evaluates an extension you already have, and after scaffolding you still need to define real scoring and trials for that extension.
+
+Before you run it:
+
+- be in the root of the Pi extension repo you want to evaluate
+- have an extension entry point already checked into that repo
+- expect to edit the generated plugin and trial files before the eval is meaningful
+
+To scaffold the harness:
 
 ```bash
 npx pi-do-eval init
 cd eval
 npm install
-npm run eval -- list
-npm run eval -- run --trial example --variant default
-npm run view
 ```
 
 `pi-do-eval init` creates:
@@ -44,14 +49,31 @@ eval/
   eval.config.ts
   eval.ts
   plugins/
-    <your-extension>.ts
+    <your-extension>.ts   # eval plugin; points at your real extension entry
   trials/
     example/
-      config.ts
-      task.md
+      config.ts           # placeholder trial config
+      task.md             # placeholder task
 ```
 
 The generated `eval.ts` is a complete harness: it creates timestamped run directories, uses a fresh `workdir/` for each run, writes reports, updates the viewer index, and wires in live snapshots for the viewer.
+
+After scaffolding, you still need to do some setup work:
+
+1. Edit `plugins/<your-extension>.ts` to implement scoring and optional verification.
+2. Replace the example trial with a real task for your extension.
+3. Install the eval package dependencies with `cd eval && npm install`.
+4. Run the scaffolded example once to smoke-test the harness wiring.
+
+The generated example plugin and trial are placeholders. Running them immediately is useful as a harness smoke test, but not yet as a meaningful evaluation of your extension.
+
+Once the harness is scaffolded, use:
+
+```bash
+npm run eval -- list
+npm run eval -- run --trial example --variant default
+npm run view
+```
 
 If you want a real example beyond the scaffold, see the `eval/` directory in [pi-tdd](https://github.com/kreek/pi-tdd/tree/main/eval). The rest of this README explains the lower-level APIs the scaffold uses.
 
