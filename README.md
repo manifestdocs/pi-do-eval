@@ -1,6 +1,6 @@
 # Pi, do Eval 😈😇
 
-A library for building eval harnesses for [Pi](https://github.com/badlogic/pi-mono) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows.
+A library for building eval harnesses for [Pi](https://pi.dev) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows.
 
 `pi-do-eval` gives you the building blocks:
 
