@@ -1,4 +1,4 @@
-# Pi do Eval? 😈😇
+# Pi, do Eval 😈😇
 
 A library for building eval harnesses for [Pi](https://github.com/anthropics/pi) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows. This library provides the building blocks (session parsing, scoring, judge orchestration, reporting) but does not run on its own. You write a script that imports from `pi-do-eval`, wires the pieces together, and defines what "good" looks like for your extension. No separate eval platform needed; evals run through your existing Pi setup using Pi itself as both the worker (running the extension under test) and the judge (evaluating output quality).
 
@@ -12,57 +12,21 @@ A library for building eval harnesses for [Pi](https://github.com/anthropics/pi)
 
 The eval prompt is deliberately minimal; the extension's system prompt must drive the behavior on its own.
 
-## Key concepts
-
-**Plugin.** Each extension provides an eval plugin that defines what "good" looks like. A TDD extension might score test-before-code ordering; a code review extension might score issue detection accuracy. The plugin handles domain-specific parsing, scoring, and judge prompting while the framework handles orchestration.
-
-**Project.** A self-contained task used as eval input. Each project contains a prompt, optional scaffold files, and a config that maps it to a plugin.
-
-**Scoring.** Two sources of scores are combined into a weighted average: deterministic scores computed by the plugin (e.g. "did the tests pass?") and LLM judge scores from a second Pi session that evaluates output quality.
-
-## Quick start
-
-There is no CLI. You build your own eval script that imports from `pi-do-eval` and calls its functions. A typical harness lives in your extension's repo (e.g. `eval/run.ts`) alongside your plugin and project definitions.
-
-Install `pi-do-eval` as a dependency of your project:
+## Getting started
 
 ```bash
 npm install pi-do-eval
 ```
 
-Then write a script that orchestrates the pipeline:
+Building an eval harness has three steps:
 
-```typescript
-import { runEval, runJudge, scoreSession, defaultVerify, writeReport, printSummary } from "pi-do-eval";
-import { plugin } from "./plugin.js"; // your EvalPlugin (see "Writing a plugin")
+1. **Write a plugin** that defines how to score your extension
+2. **Create trials** (tasks that put the extension on trial)
+3. **Write a run script** that wires the pipeline together
 
-const taskDescription = fs.readFileSync("./projects/my-project/task.md", "utf-8");
+## Step 1: Write a plugin
 
-// 1. Run the extension against a project
-const result = await runEval({
-  projectDir: "./projects/my-project",
-  workDir: "/tmp/eval-run",
-  prompt: taskDescription,
-  extensionPath: plugin.extensionPath,
-});
-
-// 2. Verify, judge, and score
-const verify = plugin.verify?.("/tmp/eval-run") ?? defaultVerify();
-const judgeOutcome = await runJudge({
-  workDir: "/tmp/eval-run",
-  prompt: plugin.buildJudgePrompt(taskDescription, "/tmp/eval-run"),
-});
-const scores = scoreSession({
-  session: result.session,
-  verify,
-  plugin,
-  judgeResult: judgeOutcome.ok ? judgeOutcome.result : undefined,
-});
-```
-
-## Writing a plugin
-
-Each extension provides an eval plugin that implements the `EvalPlugin` interface:
+The plugin is where you define what "good" looks like for your extension. It implements the `EvalPlugin` interface:
 
 ```typescript
 interface EvalPlugin {
@@ -101,9 +65,9 @@ interface PluginScoreResult {
 
 `buildJudgePrompt` receives the task description and working directory, and produces the prompt for a second Pi session (with no extensions) that evaluates output quality. The judge returns JSON with scores, reasons, and findings.
 
-### Full plugin skeleton
+### Example plugin
 
-Create a file in your own repo that exports an `EvalPlugin`. Set `extensionPath` to the Pi extension's entry file, implement `scoreSession` with deterministic checks, and implement `buildJudgePrompt` with evaluation criteria.
+Create a file in your own repo (e.g. `eval/plugin.ts`) that exports an `EvalPlugin`. Set `extensionPath` to the Pi extension's entry file, implement `scoreSession` with deterministic checks, and implement `buildJudgePrompt` with evaluation criteria.
 
 ```typescript
 import type { EvalPlugin } from "pi-do-eval";
@@ -145,23 +109,29 @@ export const plugin: EvalPlugin = {
 };
 ```
 
-## Creating a project
+## Step 2: Create trials
 
-A project is a self-contained task for the extension to attempt. The framework does not enforce any directory layout; how you organize and discover projects is up to your eval harness. The only convention the framework relies on is a `scaffold/` directory: if you pass a `projectDir` to `runEval`, it copies any files from `projectDir/scaffold/` into the working directory before spawning Pi.
+A trial is a self-contained task that puts the extension on trial. Each trial tests whether the extension can handle a specific scenario. The framework does not enforce any directory layout; how you organize and discover trials is up to your eval harness.
 
-A typical project directory looks like:
+The one convention the framework provides is **starter files**: if you pass a `trialDir` to `runEval`, it copies any files from `trialDir/scaffold/` into the working directory before spawning Pi. This resets the working directory to a known starting state for each run, so trials are reproducible. Use this for boilerplate the agent shouldn't have to generate (e.g. `package.json`, config files, directory structure).
 
-| File | Description |
-|------|-------------|
-| `scaffold/` | Optional starter files copied into the working directory |
+A typical trial directory:
 
-Beyond that, your harness decides what else lives in a project directory (prompts, config, expected outputs).
+```
+trials/stack-calc/
+  task.md              # prompt describing what the agent should build
+  scaffold/            # optional starter files, copied into workDir
+    package.json
+    tsconfig.json
+```
 
-### Example projects
+Beyond that, your harness decides what else lives in a trial directory.
 
-The [pi-tdd](https://github.com/manifestdocs/pi-tdd) extension includes a set of example projects. Any extension can define its own projects with its own plugin.
+### Example trials
 
-| Project | Description | Variants |
+The [pi-tdd](https://github.com/manifestdocs/pi-tdd) extension includes a set of example trials. Any extension can define its own trials with its own plugin.
+
+| Trial | Description | Variants |
 |---------|-------------|----------|
 | `stack-calc` | Stack-based calculator | TS, Python, Go |
 | `temp-api` | Temperature conversion API | Python, TS, Go |
@@ -169,6 +139,38 @@ The [pi-tdd](https://github.com/manifestdocs/pi-tdd) extension includes a set of
 | `word-freq` | Word frequency counter | Go, Python, TS |
 | `fullstack-notes` | Notes app monorepo | TS |
 | `fizzbuzz-polyglot` | FizzBuzz with custom rules | C, TS, Ruby |
+
+## Step 3: Write a run script
+
+With your plugin and trials in place, write a script (e.g. `eval/run.ts`) that orchestrates the pipeline:
+
+```typescript
+import { runEval, runJudge, scoreSession, defaultVerify, writeReport, printSummary } from "pi-do-eval";
+import { plugin } from "./plugin.js";
+
+const taskDescription = fs.readFileSync("./trials/my-trial/task.md", "utf-8");
+
+// 1. Run the extension against a trial
+const result = await runEval({
+  trialDir: "./trials/my-trial",
+  workDir: "/tmp/eval-run",
+  prompt: taskDescription,
+  extensionPath: plugin.extensionPath,
+});
+
+// 2. Verify, judge, and score
+const verify = plugin.verify?.("/tmp/eval-run") ?? defaultVerify();
+const judgeOutcome = await runJudge({
+  workDir: "/tmp/eval-run",
+  prompt: plugin.buildJudgePrompt(taskDescription, "/tmp/eval-run"),
+});
+const scores = scoreSession({
+  session: result.session,
+  verify,
+  plugin,
+  judgeResult: judgeOutcome.ok ? judgeOutcome.result : undefined,
+});
+```
 
 ## Scoring
 
@@ -193,7 +195,7 @@ Each run creates a timestamped directory under `runs/` containing:
 | `report.json` | Structured scores (deterministic + judge) |
 | `report.md` | Human-readable results with judge reasoning |
 | `session.jsonl` | Raw Pi session for debugging |
-| `workdir/` | The project the agent built |
+| `workdir/` | The working directory the agent operated in |
 
 An `index.json` at `runs/index.json` summarizes all runs for the report viewer. Start the viewer with `npm run view` (serves at `localhost:3333`). The viewer auto-refreshes the run index and polls live snapshots for in-progress runs.
 
@@ -203,7 +205,7 @@ Pass a `live` option to `runEval` to stream progress while a run is in flight. T
 
 ```typescript
 const result = await runEval({
-  projectDir: "./projects/my-project",
+  trialDir: "./trials/my-trial",
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
@@ -211,7 +213,7 @@ const result = await runEval({
     runDir: "./runs/2026-04-12T14-00-00Z",   // where live artifacts are written
     runsDir: "./runs",                         // parent dir; index.json is updated here
     intervalMs: 2000,                          // snapshot frequency (default: 2000)
-    meta: { project: "my-project", variant: "ts", workerModel: "claude-sonnet-4" },
+    meta: { trial: "my-trial", variant: "ts", workerModel: "claude-sonnet-4" },
   },
 });
 ```
@@ -232,7 +234,7 @@ Both `runEval` and `runJudge` accept `provider`, `model`, and `thinking` options
 
 ```typescript
 const result = await runEval({
-  projectDir: "./projects/my-project",
+  trialDir: "./trials/my-trial",
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
@@ -279,7 +281,7 @@ Pass `sandbox: true` to `runEval` and/or `runJudge`:
 
 ```typescript
 const result = await runEval({
-  projectDir: "./projects/my-project",
+  trialDir: "./trials/my-trial",
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
@@ -301,7 +303,7 @@ For finer control, pass a `SandboxOptions` object instead of `true`:
 
 ```typescript
 const result = await runEval({
-  projectDir: "./projects/my-project",
+  trialDir: "./trials/my-trial",
   workDir: "/tmp/eval-run",
   prompt: "Implement all user stories described in the task.",
   extensionPath: myPlugin.extensionPath,
@@ -323,7 +325,7 @@ const result = await runEval({
 
 ## See also
 
-[pi-tdd](https://github.com/manifestdocs/pi-tdd) is a TDD enforcement extension for Pi that uses pi-do-eval for its eval suite. It's a good example of a real plugin, project set, and scoring implementation built on this framework.
+[pi-tdd](https://github.com/manifestdocs/pi-tdd) is a TDD enforcement extension for Pi that uses pi-do-eval for its eval suite. It's a good example of a real plugin, trial set, and scoring implementation built on this framework.
 
 ## Development
 
