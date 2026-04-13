@@ -10,11 +10,11 @@ export interface LiveOptions {
   runDir: string;
   runsDir: string;
   intervalMs?: number;
-  meta: { project: string; variant: string; workerModel?: string };
+  meta: { trial: string; variant: string; workerModel?: string };
 }
 
 export interface RunOptions {
-  projectDir: string;
+  trialDir: string;
   workDir: string;
   prompt: string;
   extensionPath: string;
@@ -44,7 +44,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
   const inactivity = opts.inactivityMs ?? DEFAULT_INACTIVITY;
 
   // Copy scaffold files if they exist
-  const scaffoldDir = path.join(opts.projectDir, "scaffold");
+  const scaffoldDir = path.join(opts.trialDir, "scaffold");
   if (fs.existsSync(scaffoldDir)) {
     copyDirSync(scaffoldDir, opts.workDir);
   }

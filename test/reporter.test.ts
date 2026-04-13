@@ -5,7 +5,7 @@ import type { EvalReport } from "../src/types.js";
 function makeReport(overrides?: Partial<EvalReport>): EvalReport {
   return {
     meta: {
-      project: "test-project",
+      trial: "test-project",
       variant: "baseline",
       workerModel: "claude-sonnet",
       startedAt: "2026-01-01T00:00:00Z",
@@ -39,7 +39,7 @@ function makeReport(overrides?: Partial<EvalReport>): EvalReport {
 }
 
 describe("formatMarkdown", () => {
-  it("includes the project and variant in the title", () => {
+  it("includes the trial and variant in the title", () => {
     const md = formatMarkdown(makeReport());
     expect(md).toContain("# Eval Report: test-project (baseline)");
   });

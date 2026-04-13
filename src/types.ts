@@ -83,7 +83,7 @@ export interface EvalScores {
 
 export interface EvalReport {
   meta: {
-    project: string;
+    trial: string;
     variant: string;
     workerModel: string;
     judgeModel?: string;

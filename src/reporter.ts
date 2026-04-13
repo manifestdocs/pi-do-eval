@@ -13,7 +13,7 @@ export function writeReport(report: EvalReport, runDir: string) {
 
 interface RunIndexEntry {
   dir: string;
-  project: string;
+  trial: string;
   variant: string;
   status: string;
   overall: number;
@@ -38,7 +38,7 @@ export function updateRunIndex(runsDir: string) {
         const report: EvalReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
         entries.push({
           dir,
-          project: report.meta.project,
+          trial: report.meta.trial,
           variant: report.meta.variant,
           status: report.meta.status,
           overall: report.scores.overall,
@@ -60,7 +60,7 @@ export function updateRunIndex(runsDir: string) {
         const status = JSON.parse(fs.readFileSync(statusPath, "utf-8"));
         entries.push({
           dir,
-          project: status.project ?? "",
+          trial: status.trial ?? "",
           variant: status.variant ?? "",
           status: status.status ?? "running",
           overall: 0,
@@ -81,7 +81,7 @@ export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string 
   const { meta, scores, findings, judgeResult } = report;
   const lines: string[] = [];
 
-  lines.push(`# Eval Report: ${meta.project} (${meta.variant})`);
+  lines.push(`# Eval Report: ${meta.trial} (${meta.variant})`);
   lines.push("");
   lines.push("| Field | Value |");
   lines.push("|-------|-------|");
@@ -165,7 +165,7 @@ export function printSummary(report: EvalReport) {
     return "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
   };
 
-  console.log(`\n${meta.project}/${meta.variant} (${meta.status})`);
+  console.log(`\n${meta.trial}/${meta.variant} (${meta.status})`);
   for (const [key, value] of Object.entries(scores.deterministic)) {
     console.log(`  ${key.padEnd(18)} ${bar(value)} ${value}`);
   }
