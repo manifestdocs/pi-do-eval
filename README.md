@@ -1,16 +1,16 @@
 # Pi, do Eval 😈😇
 
-A library for building eval harnesses for [Pi](https://pi.dev) extensions. Pi is an AI coding agent; extensions customize its behavior for specific workflows.
+A framework for building your own Pi-based evaluation harnesses for [Pi](https://pi.dev) extensions. Use it to evaluate extensions you create, iterate on their behavior, and catch regressions as you improve them.
 
-`pi-do-eval` gives you the building blocks:
+A harness built with `pi-do-eval` can:
 
-- Run Pi with the extension under test
-- Parse the JSONL session into tool calls, file writes, and plugin events
-- Run deterministic verification
-- Run a second Pi session as an LLM judge
-- Score and report the result
+- run Pi with the extension under test
+- parse the JSONL session into tool calls, file writes, and plugin events
+- run deterministic verification
+- run a second Pi session as an LLM judge
+- score and report the result
 
-It also ships a small scaffold command, `pi-do-eval init`, which generates a working eval harness you can customize.
+It ships a small scaffold command, `pi-do-eval init`, which generates a working harness you can customize.
 
 ## How it works
 
