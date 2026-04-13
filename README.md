@@ -1,6 +1,6 @@
 # Pi, do Eval 😈😇
 
-Use Pi to eval Pi (extensions). "Pi, do Eval" is a framework for building your own Pi-based evaluation harnesses. Use it to evaluate an extension you created, iterate on its behavior, and catch regressions as you improve the extension.
+Use Pi to eval Pi (extensions). "Pi, do Eval" is a framework for building your own Pi-based evaluation harnesses. Use it to evaluate an extension you created, iterate on its behavior, and catch regressions as you improve it.
 
 A harness built with `pi-do-eval` can:
 
