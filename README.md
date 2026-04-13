@@ -33,50 +33,30 @@ npm install pi-do-eval
 Then write a script that orchestrates the pipeline:
 
 ```typescript
-import {
-  runEval,
-  scoreSession,
-  runJudge,
-  writeReport,
-  printSummary,
-  defaultVerify,
-  type EvalPlugin,
-  type RunOptions,
-} from "pi-do-eval";
+import { runEval, runJudge, scoreSession, defaultVerify, writeReport, printSummary } from "pi-do-eval";
+import { plugin } from "./plugin.js"; // your EvalPlugin (see "Writing a plugin")
 
-// 1. Define your plugin (or import one)
-const myPlugin: EvalPlugin = {
-  name: "my-extension",
-  extensionPath: "/path/to/my/extension/index.ts",
-  scoreSession(session, verify) {
-    // Your deterministic scoring logic
-    return { scores: { correctness: 80 }, weights: { correctness: 0.5 }, findings: [] };
-  },
-  buildJudgePrompt(taskDescription, workDir) {
-    return `Evaluate the implementation in ${workDir} against this task:\n${taskDescription}`;
-  },
-};
+const taskDescription = fs.readFileSync("./projects/my-project/task.md", "utf-8");
 
-// 2. Run the extension against a project
+// 1. Run the extension against a project
 const result = await runEval({
   projectDir: "./projects/my-project",
   workDir: "/tmp/eval-run",
-  prompt: "Implement all user stories described in the task.",
-  extensionPath: myPlugin.extensionPath,
+  prompt: taskDescription,
+  extensionPath: plugin.extensionPath,
 });
 
-// 3. Verify and score
-const verify = myPlugin.verify?.("/tmp/eval-run") ?? defaultVerify();
-const judgeResult = await runJudge({
+// 2. Verify, judge, and score
+const verify = plugin.verify?.("/tmp/eval-run") ?? defaultVerify();
+const judgeOutcome = await runJudge({
   workDir: "/tmp/eval-run",
-  prompt: myPlugin.buildJudgePrompt(taskDescription, "/tmp/eval-run"),
+  prompt: plugin.buildJudgePrompt(taskDescription, "/tmp/eval-run"),
 });
-
 const scores = scoreSession({
   session: result.session,
   verify,
-  plugin: myPlugin,
-  judgeResult,
+  plugin,
+  judgeResult: judgeOutcome.ok ? judgeOutcome.result : undefined,
 });
 ```
 
