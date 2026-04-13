@@ -7,6 +7,9 @@
     ".": "./src/index.ts",
     "./viewer": "./src/viewer.html"
   },
+  "bin": {
+    "pi-do-eval": "./src/cli.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "lint": "biome check",
