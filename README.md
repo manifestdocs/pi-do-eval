@@ -20,7 +20,7 @@ It also ships a small scaffold command, `pi-do-eval init`, which generates a wor
 4. Your harness can spawn `pi -p --mode json --no-extensions` as a judge.
 5. Deterministic plugin scores and judge scores are combined into a weighted final report.
 
-The eval prompt is deliberately minimal; the extension's own system prompt should drive the behavior.
+Note: The eval prompt is deliberately minimal; the extension's own system prompt should drive the behavior.
 
 ## Quick Start
 
@@ -53,7 +53,7 @@ eval/
 
 The generated `eval.ts` is a complete harness: it creates timestamped run directories, uses a fresh `workdir/` for each run, writes reports, updates the viewer index, and wires in live snapshots for the viewer.
 
-If you want a real example beyond the scaffold, see the `eval/` directory in [pi-tdd](https://github.com/manifestdocs/pi-tdd). The rest of this README explains the lower-level APIs the scaffold uses.
+If you want a real example beyond the scaffold, see the `eval/` directory in [pi-tdd](https://github.com/kreek/pi-tdd). The rest of this README explains the lower-level APIs the scaffold uses.
 
 ## Plugin API
 
@@ -76,7 +76,7 @@ interface EvalPlugin {
   // Required: build the prompt sent to the LLM judge
   buildJudgePrompt(taskDescription: string, workDir: string): string;
 
-  // Optional: run independent verification (for example tests, lint, build)
+  // Optional: run independent verification (for example, tests, lint, build)
   verify?(workDir: string): VerifyResult;
 
   // Optional: custom summary lines for reports
@@ -142,9 +142,9 @@ export const plugin: EvalPlugin = {
 };
 ```
 
-## Trials
+## Put Your Agent on Trial
 
-A trial is a self-contained task that puts the extension on trial. The library itself only assumes one convention:
+A trial is a self-contained task that puts the extension to the test. The library itself only assumes one convention:
 
 - If `trialDir/scaffold/` exists, `runEval` copies those files into `workDir` before spawning Pi.
 
@@ -355,7 +355,7 @@ Judge metadata is different: `runJudge` currently returns scores, reasons, and f
 
 ## Sandboxing
 
-Extensions under eval can execute arbitrary code. Sandboxing constrains the Pi subprocess so it can only access paths you explicitly allow.
+Extensions under eval can execute arbitrary code. Sandboxing constrains the Pi subprocess so that it can access only paths you explicitly allow.
 
 `pi-do-eval` uses [ai-jail](https://github.com/anthropics/ai-jail), a lightweight wrapper around OS-native sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux).
 
