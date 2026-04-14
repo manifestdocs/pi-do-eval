@@ -81,20 +81,95 @@ export interface EvalScores {
   overall: number;
 }
 
+export type EvalRunStatus = "completed" | "timeout" | "crashed" | "stalled";
+
+export interface EvalMeta {
+  trial: string;
+  variant: string;
+  workerModel: string;
+  judgeModel?: string;
+  startedAt: string;
+  durationMs: number;
+  status: EvalRunStatus;
+  suite?: string;
+  suiteRunId?: string;
+}
+
 export interface EvalReport {
-  meta: {
-    trial: string;
-    variant: string;
-    workerModel: string;
-    judgeModel?: string;
-    startedAt: string;
-    durationMs: number;
-    status: "completed" | "timeout" | "crashed" | "stalled";
-  };
+  meta: EvalMeta;
   scores: EvalScores;
   judgeResult?: JudgeResult;
   session: EvalSession;
   findings: string[];
+}
+
+// -- Suites --------------------------------------------------------------------
+
+export interface SuiteReportEntry {
+  trial: string;
+  variant: string;
+  runDir: string;
+  status: EvalRunStatus;
+  overall: number;
+  verifyPassed: boolean;
+  deterministic: Record<string, number>;
+  judge?: Record<string, number>;
+  findings: string[];
+}
+
+export interface SuiteReportSummary {
+  totalRuns: number;
+  completedRuns: number;
+  verifyFailureCount: number;
+  hardFailureCount: number;
+  averageOverall: number;
+}
+
+export interface SuiteReport {
+  suite: string;
+  suiteRunId: string;
+  startedAt: string;
+  completedAt: string;
+  entries: SuiteReportEntry[];
+  summary: SuiteReportSummary;
+}
+
+export interface SuiteIndexEntry {
+  suite: string;
+  suiteRunId: string;
+  dir: string;
+  startedAt: string;
+  completedAt: string;
+  totalRuns: number;
+  hardFailureCount: number;
+  averageOverall: number;
+}
+
+export interface SuiteComparisonOptions {
+  threshold?: number;
+}
+
+export interface SuiteComparisonEntry {
+  trial: string;
+  variant: string;
+  current?: SuiteReportEntry;
+  baseline?: SuiteReportEntry;
+  deltaOverall?: number;
+  regression: boolean;
+  findings: string[];
+}
+
+export interface SuiteComparison {
+  suite: string;
+  currentSuiteRunId: string;
+  baselineSuiteRunId: string;
+  threshold: number;
+  currentAverageOverall: number;
+  baselineAverageOverall: number;
+  averageDelta: number;
+  entries: SuiteComparisonEntry[];
+  findings: string[];
+  hasRegression: boolean;
 }
 
 // -- Sandbox ------------------------------------------------------------------
