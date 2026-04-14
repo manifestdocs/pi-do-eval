@@ -21,6 +21,8 @@ interface RunIndexEntry {
   startedAt: string;
   workerModel: string;
   judgeModel?: string;
+  suite?: string;
+  suiteRunId?: string;
 }
 
 /** Update runs/index.json with a summary of all runs. */
@@ -29,6 +31,8 @@ export function updateRunIndex(runsDir: string) {
   if (!fs.existsSync(runsDir)) return;
 
   for (const dir of fs.readdirSync(runsDir).sort().reverse()) {
+    if (dir === "suites") continue;
+
     const dirPath = path.join(runsDir, dir);
     if (!fs.statSync(dirPath).isDirectory()) continue;
 
@@ -46,6 +50,8 @@ export function updateRunIndex(runsDir: string) {
           startedAt: report.meta.startedAt,
           workerModel: report.meta.workerModel,
           judgeModel: report.meta.judgeModel,
+          suite: report.meta.suite,
+          suiteRunId: report.meta.suiteRunId,
         });
       } catch (err) {
         console.warn(`Skipping corrupt report.json in ${dir}:`, err);
@@ -67,6 +73,8 @@ export function updateRunIndex(runsDir: string) {
           durationMs: 0,
           startedAt: status.startedAt ?? "",
           workerModel: status.workerModel ?? "",
+          suite: status.suite,
+          suiteRunId: status.suiteRunId,
         });
       } catch (err) {
         console.warn(`Skipping corrupt status.json in ${dir}:`, err);
@@ -86,6 +94,8 @@ export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string 
   lines.push("| Field | Value |");
   lines.push("|-------|-------|");
   lines.push(`| Variant | ${meta.variant} |`);
+  if (meta.suite) lines.push(`| Suite | ${meta.suite} |`);
+  if (meta.suiteRunId) lines.push(`| Suite Run | ${meta.suiteRunId} |`);
   lines.push(`| Worker Model | ${meta.workerModel} |`);
   if (meta.judgeModel) lines.push(`| Judge Model | ${meta.judgeModel} |`);
   lines.push(`| Status | ${meta.status} |`);

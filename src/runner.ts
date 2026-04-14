@@ -4,13 +4,13 @@ import * as path from "node:path";
 import { parseSessionLines } from "./parser.js";
 import { updateRunIndex } from "./reporter.js";
 import { buildSandboxedCommand } from "./sandbox.js";
-import type { EvalPlugin, EvalSession, SandboxOptions } from "./types.js";
+import type { EvalMeta, EvalPlugin, EvalSession, SandboxOptions } from "./types.js";
 
 export interface LiveOptions {
   runDir: string;
   runsDir: string;
   intervalMs?: number;
-  meta: { trial: string; variant: string; workerModel?: string };
+  meta: Pick<EvalMeta, "trial" | "variant" | "suite" | "suiteRunId"> & { workerModel?: string };
 }
 
 export interface RunOptions {
@@ -50,7 +50,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
   }
 
   // Build pi command
-  const args = ["-p", "--mode", "json", "-e", opts.extensionPath, "--no-session"];
+  const args = ["-p", "--mode", "json", "--no-extensions", "-e", opts.extensionPath, "--no-session"];
   if (opts.provider) args.push("--provider", opts.provider);
   if (opts.model) args.push("--model", opts.model);
   if (opts.thinking) args.push("--thinking", opts.thinking);
