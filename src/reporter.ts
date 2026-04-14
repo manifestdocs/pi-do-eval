@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { EvalPlugin, EvalReport } from "./types.js";
+import type { EvalEvent, EvalPlugin, EvalReport, RunIndexEntry } from "./types.js";
 
 export function writeReport(report: EvalReport, runDir: string) {
   fs.mkdirSync(runDir, { recursive: true });
@@ -11,22 +11,8 @@ export function writeReport(report: EvalReport, runDir: string) {
   fs.writeFileSync(path.join(runDir, "report.md"), formatMarkdown(report));
 }
 
-interface RunIndexEntry {
-  dir: string;
-  trial: string;
-  variant: string;
-  status: string;
-  overall: number;
-  durationMs: number;
-  startedAt: string;
-  workerModel: string;
-  judgeModel?: string;
-  suite?: string;
-  suiteRunId?: string;
-}
-
 /** Update runs/index.json with a summary of all runs. */
-export function updateRunIndex(runsDir: string) {
+export function updateRunIndex(runsDir: string, emit?: (event: EvalEvent) => void) {
   const entries: RunIndexEntry[] = [];
   if (!fs.existsSync(runsDir)) return;
 
@@ -83,6 +69,7 @@ export function updateRunIndex(runsDir: string) {
   }
 
   fs.writeFileSync(path.join(runsDir, "index.json"), JSON.stringify(entries, null, 2));
+  emit?.({ type: "index_updated", timestamp: Date.now(), runs: entries });
 }
 
 export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string {

@@ -4,13 +4,14 @@ import * as path from "node:path";
 import { parseSessionLines } from "./parser.js";
 import { updateRunIndex } from "./reporter.js";
 import { buildSandboxedCommand } from "./sandbox.js";
-import type { EvalMeta, EvalPlugin, EvalSession, SandboxOptions } from "./types.js";
+import type { EvalEvent, EvalMeta, EvalPlugin, EvalSession, SandboxOptions } from "./types.js";
 
 export interface LiveOptions {
   runDir: string;
   runsDir: string;
   intervalMs?: number;
   meta: Pick<EvalMeta, "trial" | "variant" | "suite" | "suiteRunId"> & { workerModel?: string };
+  emit?: (event: EvalEvent) => void;
 }
 
 export interface RunOptions {
@@ -75,7 +76,17 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
       JSON.stringify({ status: "running", startedAt, ...live.meta }),
     );
     sessionStream = fs.createWriteStream(path.join(live.runDir, "session.jsonl"), { flags: "a" });
-    updateRunIndex(live.runsDir);
+    updateRunIndex(live.runsDir, live.emit);
+    live.emit?.({
+      type: "run_started",
+      timestamp: Date.now(),
+      dir: path.basename(live.runDir),
+      trial: live.meta.trial,
+      variant: live.meta.variant,
+      suite: live.meta.suite,
+      suiteRunId: live.meta.suiteRunId,
+      workerModel: live.meta.workerModel,
+    });
   }
 
   function writeLiveSnapshot() {
@@ -89,6 +100,14 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
     const tmpPath = path.join(live.runDir, "live.json.tmp");
     fs.writeFileSync(tmpPath, JSON.stringify(snapshot, null, 2));
     fs.renameSync(tmpPath, path.join(live.runDir, "live.json"));
+    live.emit?.({
+      type: "run_progress",
+      timestamp: Date.now(),
+      dir: path.basename(live.runDir),
+      durationMs: Date.now() - startMs,
+      toolCount: session.toolCalls.length,
+      fileCount: session.fileWrites.length,
+    });
   }
 
   return new Promise<RunResult>((resolve) => {
@@ -125,7 +144,15 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
       session.exitCode = code;
       if (live) {
         writeLiveSnapshot();
-        updateRunIndex(live.runsDir);
+        updateRunIndex(live.runsDir, live.emit);
+        live.emit?.({
+          type: "run_completed",
+          timestamp: Date.now(),
+          dir: path.basename(live.runDir),
+          status,
+          overall: 0,
+          durationMs: Date.now() - startMs,
+        });
       }
       resolve({ session, status, exitCode: code, stderr, workDir: opts.workDir });
     }
