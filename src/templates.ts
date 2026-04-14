@@ -90,6 +90,7 @@ export interface ModelConfig {
 export interface SuiteEntry {
   trial: string;
   variant: string;
+  epochs?: number;
 }
 
 export interface EvalConfig {
@@ -100,6 +101,7 @@ export interface EvalConfig {
     inactivityMs?: number;
     judgeMs?: number;
   };
+  epochs?: number;
   suites?: Record<string, SuiteEntry[]>;
   runSets?: Record<string, SuiteEntry[]>;
   regressions?: {
@@ -126,6 +128,7 @@ const config: EvalConfig = {
     inactivityMs: 2 * 60 * 1000,
     judgeMs: 2 * 60 * 1000,
   },
+  // epochs: 3,  // Run each trial N times for statistical significance
   suites: {
     small,
     quick: small,
@@ -143,17 +146,24 @@ export function evalScript(): string {
   return `import * as fs from "node:fs";
 import * as path from "node:path";
 import {
+  compareSuiteReports,
+  createSuiteReport,
   defaultVerify,
   type EvalPlugin,
   type EvalReport,
   type JudgeResult,
+  loadPreviousSuiteReport,
   parseSessionLines,
+  printAggregatedSummary,
+  printSuiteComparison,
   printSummary,
   runEval,
   runJudge,
   scoreSession,
   updateRunIndex,
+  updateSuiteIndex,
   writeReport,
+  writeSuiteReport,
 } from "pi-do-eval";
 
 import { type EvalConfig, getStacks, type ModelConfig, type TrialConfig, type VariantConfig } from "./types.js";
@@ -207,6 +217,10 @@ interface RunTrialOpts {
   worker?: ModelConfig;
   judge?: ModelConfig;
   timeouts?: EvalConfig["timeouts"];
+  suite?: string;
+  suiteRunId?: string;
+  epoch?: number;
+  totalEpochs?: number;
 }
 
 async function runTrial(trialName: string, variantName: string, opts: RunTrialOpts) {
@@ -230,7 +244,8 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
   const stackLabel = getStacks(variant)
     .map((s) => \`\${s.language}/\${s.testFramework}\`)
     .join(", ");
-  console.log(\`Running \${trialName}/\${variantName} (\${stackLabel})\`);
+  const epochLabel = opts.totalEpochs && opts.totalEpochs > 1 ? \` [epoch \${opts.epoch}/\${opts.totalEpochs}]\` : "";
+  console.log(\`Running \${trialName}/\${variantName} (\${stackLabel})\${epochLabel}\`);
   console.log(\`  Plugin: \${plugin.name}\`);
   console.log(\`  Work dir: \${workDir}\`);
 
@@ -251,7 +266,12 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
     live: {
       runDir,
       runsDir: RUNS_DIR,
-      meta: { trial: trialName, variant: variantName },
+      meta: {
+        trial: trialName,
+        variant: variantName,
+        ...(opts.suite ? { suite: opts.suite, suiteRunId: opts.suiteRunId } : {}),
+        ...(opts.epoch ? { epoch: opts.epoch, totalEpochs: opts.totalEpochs } : {}),
+      },
     },
   });
 
@@ -321,6 +341,8 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
       startedAt: new Date(session.startTime).toISOString(),
       durationMs: session.endTime - session.startTime,
       status: result.status,
+      ...(opts.suite ? { suite: opts.suite, suiteRunId: opts.suiteRunId } : {}),
+      ...(opts.epoch ? { epoch: opts.epoch, totalEpochs: opts.totalEpochs } : {}),
     },
     scores,
     ...(judgeResult ? { judgeResult } : {}),
@@ -331,6 +353,8 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
   writeReport(report, runDir);
   updateRunIndex(RUNS_DIR);
   printSummary(report);
+
+  return { report, runDir: path.basename(runDir) };
 }
 
 // -- CLI -----------------------------------------------------------------------
@@ -391,8 +415,61 @@ if (command === "list") {
       console.error(\`Unknown suite "\${setName}". Available: \${available}\`);
       process.exit(1);
     }
+
+    const suiteRunId = \`suite-\${Date.now()}\`;
+    const globalEpochs = evalConfig.epochs ?? 1;
+    const allResults: Array<{ report: EvalReport; runDir: string }> = [];
+    let maxEpochs = 1;
+
     for (const entry of entries) {
-      await runTrial(entry.trial, entry.variant, buildRunOpts());
+      const epochs = entry.epochs ?? globalEpochs;
+      if (epochs > maxEpochs) maxEpochs = epochs;
+      for (let e = 1; e <= epochs; e++) {
+        const result = await runTrial(entry.trial, entry.variant, {
+          ...buildRunOpts(),
+          suite: setName,
+          suiteRunId,
+          ...(epochs > 1 ? { epoch: e, totalEpochs: epochs } : {}),
+        });
+        allResults.push(result);
+      }
+    }
+
+    let comparison;
+    const previous = loadPreviousSuiteReport(RUNS_DIR, setName, suiteRunId);
+
+    // Create and write suite report
+    const suiteReport = createSuiteReport(
+      setName, suiteRunId, allResults,
+      new Date().toISOString(),
+      maxEpochs > 1 ? maxEpochs : undefined,
+    );
+
+    if (previous) {
+      comparison = compareSuiteReports(
+        suiteReport, previous,
+        { threshold: evalConfig.regressions?.threshold },
+      );
+      suiteReport.comparison = comparison;
+    }
+
+    writeSuiteReport(suiteReport, RUNS_DIR);
+    updateSuiteIndex(RUNS_DIR);
+
+    // Print aggregated summaries when epochs > 1
+    if (suiteReport.aggregated) {
+      console.log("\\n--- Aggregated Results ---");
+      for (const agg of suiteReport.aggregated) {
+        printAggregatedSummary(agg);
+      }
+    }
+
+    // Compare with previous suite run
+    if (comparison) {
+      printSuiteComparison(comparison);
+      if (comparison.hasRegression) {
+        process.exit(1);
+      }
     }
   } else {
     console.error("Usage: eval run <suite-name>  OR  eval run --trial <t> --variant <v>");

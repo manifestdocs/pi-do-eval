@@ -1,10 +1,16 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, expect, it } from "vitest";
-import { formatMarkdown, updateRunIndex, writeReport } from "../src/reporter.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  formatMarkdown,
+  printAggregatedSummary,
+  printSuiteComparison,
+  updateRunIndex,
+  writeReport,
+} from "../src/reporter.js";
 import { writeSuiteReport } from "../src/suites.js";
-import type { EvalReport } from "../src/types.js";
+import type { AggregatedSuiteEntry, EvalReport, SuiteComparison } from "../src/types.js";
 
 function makeReport(overrides?: Partial<EvalReport>): EvalReport {
   return {
@@ -118,7 +124,18 @@ describe("updateRunIndex", () => {
     const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runs-"));
     const runDir = path.join(runsDir, "2026-01-01-example-default");
 
-    writeReport(makeReport({ meta: { ...makeReport().meta, suite: "small", suiteRunId: "suite-1" } }), runDir);
+    writeReport(
+      makeReport({
+        meta: {
+          ...makeReport().meta,
+          suite: "small",
+          suiteRunId: "suite-1",
+          epoch: 2,
+          totalEpochs: 3,
+        },
+      }),
+      runDir,
+    );
     writeSuiteReport(
       {
         suite: "small",
@@ -143,6 +160,8 @@ describe("updateRunIndex", () => {
       dir: string;
       suite?: string;
       suiteRunId?: string;
+      epoch?: number;
+      totalEpochs?: number;
     }>;
 
     expect(entries).toHaveLength(1);
@@ -150,6 +169,124 @@ describe("updateRunIndex", () => {
       dir: "2026-01-01-example-default",
       suite: "small",
       suiteRunId: "suite-1",
+      epoch: 2,
+      totalEpochs: 3,
     });
+  });
+});
+
+describe("printAggregatedSummary", () => {
+  it("prints mean, stderr bars, and epoch metadata", () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => logs.push(args.join(" ")));
+
+    const entry: AggregatedSuiteEntry = {
+      trial: "todo-cli",
+      variant: "typescript",
+      epochs: 3,
+      runDirs: ["r1", "r2", "r3"],
+      overall: { mean: 76, stderr: 1.8, min: 72, max: 81, n: 3, values: [72, 76, 81] },
+      deterministic: {
+        correctness: { mean: 80, stderr: 2.1, min: 76, max: 84, n: 3, values: [76, 80, 84] },
+      },
+      statusCounts: { completed: 3 },
+      verifyPassCount: 3,
+      findings: [],
+    };
+
+    printAggregatedSummary(entry);
+    vi.restoreAllMocks();
+
+    const output = logs.join("\n");
+    expect(output).toContain("todo-cli/typescript (3 epochs)");
+    expect(output).toContain("correctness");
+    expect(output).toContain("+/-2.1");
+    expect(output).toContain("Overall");
+    expect(output).toContain("+/-1.8");
+    expect(output).toContain("72-81");
+    expect(output).toContain("3/3 completed");
+    expect(output).toContain("3/3 verified");
+  });
+
+  it("omits stderr when it is 0", () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => logs.push(args.join(" ")));
+
+    const entry: AggregatedSuiteEntry = {
+      trial: "todo",
+      variant: "ts",
+      epochs: 1,
+      runDirs: ["r1"],
+      overall: { mean: 80, stderr: 0, min: 80, max: 80, n: 1, values: [80] },
+      deterministic: { quality: { mean: 80, stderr: 0, min: 80, max: 80, n: 1, values: [80] } },
+      statusCounts: { completed: 1 },
+      verifyPassCount: 1,
+      findings: [],
+    };
+
+    printAggregatedSummary(entry);
+    vi.restoreAllMocks();
+
+    const output = logs.join("\n");
+    expect(output).not.toContain("+/-");
+  });
+});
+
+describe("printSuiteComparison", () => {
+  it("prints comparison with severity labels", () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => logs.push(args.join(" ")));
+
+    const comparison: SuiteComparison = {
+      suite: "small",
+      currentSuiteRunId: "suite-011",
+      baselineSuiteRunId: "suite-010",
+      threshold: 3,
+      currentAverageOverall: 72,
+      baselineAverageOverall: 80,
+      averageDelta: -8,
+      entries: [
+        {
+          trial: "todo-cli",
+          variant: "ts",
+          deltaOverall: -8,
+          regression: true,
+          severity: "significant",
+          findings: ["Overall score dropped by 8 points"],
+        },
+        {
+          trial: "api",
+          variant: "ts",
+          deltaOverall: -2,
+          regression: false,
+          severity: "drift",
+          findings: ["Overall score drifted by -2 points"],
+        },
+        {
+          trial: "calc",
+          variant: "ts",
+          regression: true,
+          severity: "hard",
+          findings: ["Status regressed from completed to timeout"],
+        },
+      ],
+      findings: [],
+      hasRegression: true,
+      hardRegressionCount: 1,
+      significantRegressionCount: 1,
+      driftCount: 1,
+    };
+
+    printSuiteComparison(comparison);
+    vi.restoreAllMocks();
+
+    const output = logs.join("\n");
+    expect(output).toContain("Suite: small");
+    expect(output).toContain("suite-010");
+    expect(output).toContain("suite-011");
+    expect(output).toContain("SIGNIFICANT");
+    expect(output).toContain("drift");
+    expect(output).toContain("HARD");
+    expect(output).toContain("1 hard, 1 significant, 1 drift");
   });
 });

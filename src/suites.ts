@@ -1,7 +1,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type {
+  AggregatedSuiteEntry,
+  EpochStats,
   EvalReport,
+  EvalRunStatus,
+  StatusCounts,
   SuiteComparison,
   SuiteComparisonEntry,
   SuiteComparisonOptions,
@@ -14,6 +18,113 @@ const DEFAULT_THRESHOLD = 3;
 const SUITES_DIR_NAME = "suites";
 const SUITE_REPORT_FILE = "report.json";
 const SUITE_INDEX_FILE = "index.json";
+
+// -- Epoch statistics -----------------------------------------------------------
+
+export function computeStats(values: number[]): EpochStats {
+  const n = values.length;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  if (n <= 1) {
+    return { mean: Math.round(mean * 10) / 10, stderr: 0, min: mean, max: mean, n, values };
+  }
+  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1);
+  const stderr = Math.sqrt(variance) / Math.sqrt(n);
+  return {
+    mean: Math.round(mean * 10) / 10,
+    stderr: Math.round(stderr * 10) / 10,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    n,
+    values,
+  };
+}
+
+function collectValues(
+  entries: SuiteReportEntry[],
+  getValue: (entry: SuiteReportEntry) => number | undefined,
+): number[] {
+  return entries.flatMap((entry) => {
+    const value = getValue(entry);
+    return value === undefined ? [] : [value];
+  });
+}
+
+export function aggregateEpochEntries(entries: SuiteReportEntry[]): AggregatedSuiteEntry[] {
+  const groups = new Map<string, SuiteReportEntry[]>();
+  for (const entry of entries) {
+    const key = suiteEntryKey(entry);
+    const group = groups.get(key);
+    if (group) group.push(entry);
+    else groups.set(key, [entry]);
+  }
+
+  const result: AggregatedSuiteEntry[] = [];
+  for (const [, group] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const first = group[0];
+    if (!first) continue;
+    const overall = computeStats(group.map((e) => e.overall));
+
+    // Aggregate deterministic scores
+    const detKeys = [...new Set(group.flatMap((e) => Object.keys(e.deterministic)))];
+    const deterministic: Record<string, EpochStats> = {};
+    for (const key of detKeys) {
+      const values = collectValues(group, (entry) => entry.deterministic[key]);
+      if (values.length > 0) deterministic[key] = computeStats(values);
+    }
+
+    // Aggregate judge scores (only from epochs that have them)
+    let judge: Record<string, EpochStats> | undefined;
+    const epochsWithJudge = group.filter(
+      (entry): entry is SuiteReportEntry & { judge: Record<string, number> } => entry.judge !== undefined,
+    );
+    if (epochsWithJudge.length > 0) {
+      judge = {};
+      const judgeKeys = [...new Set(epochsWithJudge.flatMap((entry) => Object.keys(entry.judge)))];
+      for (const key of judgeKeys) {
+        const values = epochsWithJudge.flatMap((entry) => {
+          const value = entry.judge[key];
+          return value === undefined ? [] : [value];
+        });
+        if (values.length > 0) judge[key] = computeStats(values);
+      }
+    }
+
+    // Count statuses
+    const statusCounts: StatusCounts = {};
+    for (const entry of group) {
+      statusCounts[entry.status] = (statusCounts[entry.status] ?? 0) + 1;
+    }
+
+    // Deduplicate findings preserving order
+    const seen = new Set<string>();
+    const findings: string[] = [];
+    for (const entry of group) {
+      for (const f of entry.findings) {
+        if (!seen.has(f)) {
+          seen.add(f);
+          findings.push(f);
+        }
+      }
+    }
+
+    result.push({
+      trial: first.trial,
+      variant: first.variant,
+      epochs: group.length,
+      runDirs: group.map((e) => e.runDir),
+      overall,
+      deterministic,
+      ...(judge ? { judge } : {}),
+      statusCounts,
+      verifyPassCount: group.filter((e) => e.verifyPassed).length,
+      findings,
+    });
+  }
+
+  return result;
+}
+
+// -- Suite file helpers ---------------------------------------------------------
 
 function getSuitesDir(runsDir: string): string {
   return path.join(runsDir, SUITES_DIR_NAME);
@@ -58,6 +169,37 @@ function isHardFailure(entry: SuiteReportEntry): boolean {
   return entry.status !== "completed" || !entry.verifyPassed;
 }
 
+function completedCount(entry: AggregatedSuiteEntry): number {
+  return entry.statusCounts.completed ?? 0;
+}
+
+function rate(count: number, total: number): number {
+  return total > 0 ? count / total : 0;
+}
+
+function buildSingleEntryMap(entries: SuiteReportEntry[]): Map<string, SuiteReportEntry> {
+  const groups = new Map<string, SuiteReportEntry[]>();
+  for (const entry of entries) {
+    const key = suiteEntryKey(entry);
+    const existing = groups.get(key);
+    if (existing) existing.push(entry);
+    else groups.set(key, [entry]);
+  }
+
+  const result = new Map<string, SuiteReportEntry>();
+  for (const [key, group] of groups) {
+    const entry = group[0];
+    if (group.length === 1 && entry) result.set(key, entry);
+  }
+  return result;
+}
+
+function buildAggregatedEntryMap(report: SuiteReport): Map<string, AggregatedSuiteEntry> {
+  return new Map(
+    (report.aggregated ?? aggregateEpochEntries(report.entries)).map((entry) => [suiteEntryKey(entry), entry]),
+  );
+}
+
 export function buildSuiteReportEntry(report: EvalReport, runDir: string): SuiteReportEntry {
   return {
     trial: report.meta.trial,
@@ -92,6 +234,7 @@ export function createSuiteReport(
   suiteRunId: string,
   reports: Array<{ report: EvalReport; runDir: string }>,
   completedAt = new Date().toISOString(),
+  epochs?: number,
 ): SuiteReport {
   const entries = reports.map(({ report, runDir }) => buildSuiteReportEntry(report, runDir));
   const sortedEntries = [...entries].sort((a, b) => suiteEntryKey(a).localeCompare(suiteEntryKey(b)));
@@ -101,13 +244,18 @@ export function createSuiteReport(
       .sort(compareTimestamps)
       .at(-1) ?? completedAt;
 
+  const hasEpochs = epochs !== undefined && epochs > 1;
+  const summary = summarizeSuiteEntries(sortedEntries);
+  if (hasEpochs) summary.epochs = epochs;
+
   return {
     suite,
     suiteRunId,
     startedAt,
     completedAt,
     entries: sortedEntries,
-    summary: summarizeSuiteEntries(sortedEntries),
+    summary,
+    ...(hasEpochs ? { epochs, aggregated: aggregateEpochEntries(sortedEntries) } : {}),
   };
 }
 
@@ -139,6 +287,7 @@ export function updateSuiteIndex(runsDir: string) {
       totalRuns: report.summary.totalRuns,
       hardFailureCount: report.summary.hardFailureCount,
       averageOverall: report.summary.averageOverall,
+      ...(report.epochs ? { epochs: report.epochs } : {}),
     });
   }
 
@@ -177,50 +326,99 @@ function compareSuiteEntry(
   current: SuiteReportEntry | undefined,
   baseline: SuiteReportEntry | undefined,
   threshold: number,
+  currentAgg?: AggregatedSuiteEntry,
+  baselineAgg?: AggregatedSuiteEntry,
 ): SuiteComparisonEntry {
-  const trial = current?.trial ?? baseline?.trial ?? "";
-  const variant = current?.variant ?? baseline?.variant ?? "";
+  const trial = current?.trial ?? baseline?.trial ?? currentAgg?.trial ?? baselineAgg?.trial ?? "";
+  const variant = current?.variant ?? baseline?.variant ?? currentAgg?.variant ?? baselineAgg?.variant ?? "";
   const findings: string[] = [];
-  let regression = false;
+  let severity: SuiteComparisonEntry["severity"];
   let deltaOverall: number | undefined;
 
-  if (!current && baseline) {
-    regression = true;
+  const hasAggregatedComparison =
+    currentAgg !== undefined && baselineAgg !== undefined && (currentAgg.epochs > 1 || baselineAgg.epochs > 1);
+
+  if (!current && !currentAgg && (baseline || baselineAgg)) {
+    severity = "hard";
     findings.push("Entry missing from current suite run");
-  } else if (current && !baseline) {
+  } else if ((current || currentAgg) && !baseline && !baselineAgg) {
     findings.push("New entry in current suite run");
+  } else if (hasAggregatedComparison && currentAgg && baselineAgg) {
+    // Epoch-aware comparison using aggregated stats
+    deltaOverall = Math.round((currentAgg.overall.mean - baselineAgg.overall.mean) * 10) / 10;
+
+    const baselineCompleted = completedCount(baselineAgg);
+    const currentCompleted = completedCount(currentAgg);
+    if (rate(currentCompleted, currentAgg.epochs) < rate(baselineCompleted, baselineAgg.epochs)) {
+      severity = "hard";
+      findings.push(
+        `Completion rate regressed to ${currentCompleted}/${currentAgg.epochs} (was ${baselineCompleted}/${baselineAgg.epochs})`,
+      );
+    }
+
+    if (rate(currentAgg.verifyPassCount, currentAgg.epochs) < rate(baselineAgg.verifyPassCount, baselineAgg.epochs)) {
+      severity = "hard";
+      findings.push(
+        `Verification rate regressed to ${currentAgg.verifyPassCount}/${currentAgg.epochs} (was ${baselineAgg.verifyPassCount}/${baselineAgg.epochs})`,
+      );
+    }
+
+    // Statistical significance for score drop (only if not already hard)
+    if (!severity && deltaOverall < 0) {
+      const seDelta = Math.sqrt(currentAgg.overall.stderr ** 2 + baselineAgg.overall.stderr ** 2);
+      if (seDelta > 0) {
+        const zScore = Math.abs(deltaOverall) / seDelta;
+        if (zScore > 2.0) {
+          severity = "significant";
+          findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points (z=${zScore.toFixed(1)})`);
+        } else if (Math.abs(deltaOverall) > 1) {
+          severity = "drift";
+          findings.push(`Overall score drifted by ${deltaOverall} points (z=${zScore.toFixed(1)})`);
+        }
+      } else if (Math.abs(deltaOverall) > 0) {
+        // Zero stderr means identical values in both — any drop is significant
+        severity = "significant";
+        findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points`);
+      }
+    }
   } else if (current && baseline) {
+    // Single-epoch fallback: flat threshold with severity labels
     deltaOverall = Math.round((current.overall - baseline.overall) * 10) / 10;
 
     if (baseline.status === "completed" && current.status !== "completed") {
-      regression = true;
+      severity = "hard";
       findings.push(`Status regressed from ${baseline.status} to ${current.status}`);
     } else if (baseline.status !== "completed" && current.status === "completed") {
       findings.push(`Status improved from ${baseline.status} to ${current.status}`);
     }
 
     if (baseline.verifyPassed && !current.verifyPassed) {
-      regression = true;
+      severity = "hard";
       findings.push("Verification regressed from pass to fail");
     } else if (!baseline.verifyPassed && current.verifyPassed) {
       findings.push("Verification improved from fail to pass");
     }
 
-    if (baseline.overall - current.overall > threshold) {
-      regression = true;
+    if (!severity && baseline.overall - current.overall > threshold) {
+      severity = "significant";
       findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points`);
     } else if (deltaOverall > threshold) {
       findings.push(`Overall score improved by ${deltaOverall} points`);
     }
   }
 
+  const regression = severity === "hard" || severity === "significant";
+
   return {
     trial,
     variant,
     ...(current ? { current } : {}),
     ...(baseline ? { baseline } : {}),
+    ...(currentAgg ? { currentAggregated: currentAgg } : {}),
+    ...(baselineAgg ? { baselineAggregated: baselineAgg } : {}),
     ...(deltaOverall !== undefined ? { deltaOverall } : {}),
     regression,
+    ...(severity ? { severity } : {}),
     findings,
   };
 }
@@ -231,10 +429,28 @@ export function compareSuiteReports(
   options: SuiteComparisonOptions = {},
 ): SuiteComparison {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
-  const currentEntries = new Map(current.entries.map((entry) => [suiteEntryKey(entry), entry]));
-  const baselineEntries = new Map(baseline.entries.map((entry) => [suiteEntryKey(entry), entry]));
-  const allKeys = [...new Set([...baselineEntries.keys(), ...currentEntries.keys()])].sort();
-  const entries = allKeys.map((key) => compareSuiteEntry(currentEntries.get(key), baselineEntries.get(key), threshold));
+
+  // Build lookup maps for both flat entries and aggregated entries
+  const currentEntries = buildSingleEntryMap(current.entries);
+  const baselineEntries = buildSingleEntryMap(baseline.entries);
+  const currentAgg = buildAggregatedEntryMap(current);
+  const baselineAgg = buildAggregatedEntryMap(baseline);
+
+  // Use aggregated keys when available, fall back to flat entry keys
+  const aggKeys =
+    currentAgg.size > 0 || baselineAgg.size > 0 ? [...new Set([...currentAgg.keys(), ...baselineAgg.keys()])] : [];
+  const flatKeys = [...new Set([...baselineEntries.keys(), ...currentEntries.keys()])];
+  const allKeys = [...new Set([...aggKeys, ...flatKeys])].sort();
+
+  const entries = allKeys.map((key) =>
+    compareSuiteEntry(
+      currentEntries.get(key),
+      baselineEntries.get(key),
+      threshold,
+      currentAgg.get(key),
+      baselineAgg.get(key),
+    ),
+  );
 
   const findings = entries.flatMap((entry) =>
     entry.findings.map((finding) => `${entry.trial}/${entry.variant}: ${finding}`),
@@ -246,6 +462,10 @@ export function compareSuiteReports(
   } else if (averageDelta > threshold) {
     findings.unshift(`Suite average overall improved by ${averageDelta} points`);
   }
+
+  const hardRegressionCount = entries.filter((e) => e.severity === "hard").length;
+  const significantRegressionCount = entries.filter((e) => e.severity === "significant").length;
+  const driftCount = entries.filter((e) => e.severity === "drift").length;
 
   return {
     suite: current.suite,
@@ -260,5 +480,8 @@ export function compareSuiteReports(
     hasRegression:
       entries.some((entry) => entry.regression) ||
       baseline.summary.averageOverall - current.summary.averageOverall > threshold,
+    hardRegressionCount,
+    significantRegressionCount,
+    driftCount,
   };
 }

@@ -1,6 +1,18 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { EvalEvent, EvalPlugin, EvalReport, RunIndexEntry } from "./types.js";
+import type {
+  AggregatedSuiteEntry,
+  EvalEvent,
+  EvalPlugin,
+  EvalReport,
+  RunIndexEntry,
+  SuiteComparison,
+} from "./types.js";
+
+const bar = (n: number) => {
+  const filled = Math.round(n / 5);
+  return "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
+};
 
 export function writeReport(report: EvalReport, runDir: string) {
   fs.mkdirSync(runDir, { recursive: true });
@@ -38,6 +50,8 @@ export function updateRunIndex(runsDir: string, emit?: (event: EvalEvent) => voi
           judgeModel: report.meta.judgeModel,
           suite: report.meta.suite,
           suiteRunId: report.meta.suiteRunId,
+          epoch: report.meta.epoch,
+          totalEpochs: report.meta.totalEpochs,
         });
       } catch (err) {
         console.warn(`Skipping corrupt report.json in ${dir}:`, err);
@@ -61,6 +75,8 @@ export function updateRunIndex(runsDir: string, emit?: (event: EvalEvent) => voi
           workerModel: status.workerModel ?? "",
           suite: status.suite,
           suiteRunId: status.suiteRunId,
+          epoch: status.epoch,
+          totalEpochs: status.totalEpochs,
         });
       } catch (err) {
         console.warn(`Skipping corrupt status.json in ${dir}:`, err);
@@ -157,10 +173,6 @@ export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string 
 
 export function printSummary(report: EvalReport) {
   const { meta, scores } = report;
-  const bar = (n: number) => {
-    const filled = Math.round(n / 5);
-    return "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
-  };
 
   console.log(`\n${meta.trial}/${meta.variant} (${meta.status})`);
   for (const [key, value] of Object.entries(scores.deterministic)) {
@@ -174,4 +186,58 @@ export function printSummary(report: EvalReport) {
   console.log(`  ${"Overall".padEnd(18)} ${bar(scores.overall)} ${scores.overall}`);
   const models = `worker: ${meta.workerModel}${meta.judgeModel ? ` | judge: ${meta.judgeModel}` : ""}`;
   console.log(`  ${(meta.durationMs / 1000).toFixed(0)}s | ${models}\n`);
+}
+
+export function printAggregatedSummary(entry: AggregatedSuiteEntry) {
+  const fmt = (stats: { mean: number; stderr: number }) =>
+    stats.stderr > 0 ? `${stats.mean} +/-${stats.stderr}` : `${stats.mean}`;
+
+  console.log(`\n${entry.trial}/${entry.variant} (${entry.epochs} epochs)`);
+  for (const [key, stats] of Object.entries(entry.deterministic)) {
+    console.log(`  ${key.padEnd(18)} ${bar(stats.mean)} ${fmt(stats)}`);
+  }
+  if (entry.judge) {
+    for (const [key, stats] of Object.entries(entry.judge)) {
+      console.log(`  ${key.padEnd(18)} ${bar(stats.mean)} ${fmt(stats)} (judge)`);
+    }
+  }
+  console.log(`  ${"Overall".padEnd(18)} ${bar(entry.overall.mean)} ${fmt(entry.overall)}`);
+
+  const completedCount = entry.statusCounts.completed ?? 0;
+  console.log(
+    `  range: ${entry.overall.min}-${entry.overall.max} | ${completedCount}/${entry.epochs} completed | ${entry.verifyPassCount}/${entry.epochs} verified\n`,
+  );
+}
+
+export function printSuiteComparison(comparison: SuiteComparison) {
+  console.log(
+    `\nSuite: ${comparison.suite} (baseline: ${comparison.baselineSuiteRunId} -> current: ${comparison.currentSuiteRunId})\n`,
+  );
+
+  for (const entry of comparison.entries) {
+    const label = `${entry.trial}/${entry.variant}`;
+    const delta = entry.deltaOverall !== undefined ? `(${entry.deltaOverall > 0 ? "+" : ""}${entry.deltaOverall})` : "";
+    const sev =
+      entry.severity === "hard"
+        ? "HARD"
+        : entry.severity === "significant"
+          ? "SIGNIFICANT"
+          : entry.severity === "drift"
+            ? "drift"
+            : "";
+    const finding = entry.findings[0] ?? "";
+
+    if (sev) {
+      console.log(`  ${label.padEnd(30)} ${delta.padEnd(10)} ${sev}`);
+    } else {
+      console.log(`  ${label.padEnd(30)} ${delta.padEnd(10)} ok`);
+    }
+    if (finding) console.log(`    ${finding}`);
+  }
+
+  const parts: string[] = [];
+  if (comparison.hardRegressionCount > 0) parts.push(`${comparison.hardRegressionCount} hard`);
+  if (comparison.significantRegressionCount > 0) parts.push(`${comparison.significantRegressionCount} significant`);
+  if (comparison.driftCount > 0) parts.push(`${comparison.driftCount} drift`);
+  console.log(`\n  ${parts.length > 0 ? parts.join(", ") : "no regressions"}\n`);
 }

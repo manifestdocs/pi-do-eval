@@ -20,751 +20,766 @@
         ></script>
         <style>
             :root {
-                /* Manifest palette */
-                --background: #0d1117;
-                --background-subtle: #141b24;
-                --background-muted: #21262d;
-                --background-emphasis: #30363d;
-                --foreground: #e6edf3;
-                --foreground-muted: #8b949e;
-                --foreground-subtle: #7d8590;
-                --suite-accent: var(--border-default);
-                --border-default: #30363d;
-                --border-muted: #21262d;
-                --accent-blue: #58a6ff;
-                --accent-green: #89d185;
-                --accent-red: #f85149;
-                --accent-orange: #d29922;
+                            /* Manifest palette */
+                            --background: #0d1117;
+                            --background-subtle: #141b24;
+                            --background-muted: #21262d;
+                            --background-emphasis: #30363d;
+                            --foreground: #e6edf3;
+                            --foreground-muted: #8b949e;
+                            --foreground-subtle: #7d8590;
+                            --suite-accent: var(--border-default);
+                            --border-default: #30363d;
+                            --border-muted: #21262d;
+                            --accent-blue: #58a6ff;
+                            --accent-green: #89d185;
+                            --accent-red: #f85149;
+                            --accent-orange: #d29922;
 
-                /* Score colors */
-                --score-green: #89d185;
-                --score-yellow: #d29922;
-                --score-red: #f85149;
+                            /* Score colors */
+                            --score-green: #89d185;
+                            --score-yellow: #d29922;
+                            --score-red: #f85149;
 
-                /* Layout */
-                --sidebar-width: 360px;
+                            /* Layout */
+                            --sidebar-width: 360px;
 
-                /* Pico overrides */
-                --pico-font-family: "IBM Plex Sans", sans-serif;
-                --pico-font-family-monospace: "IBM Plex Mono", monospace;
-                --pico-background-color: var(--background);
-                --pico-card-background-color: var(--background-subtle);
-                --pico-card-sectioning-background-color: var(
-                    --background-subtle
-                );
-                --pico-color: var(--foreground);
-                --pico-muted-color: var(--foreground-muted);
-                --pico-muted-border-color: var(--border-default);
-                --pico-primary: var(--accent-green);
-                --pico-primary-inverse: var(--background);
-                --pico-primary-background: var(--background-subtle);
-                --pico-primary-focus: transparent;
-                --pico-secondary-background: var(--background-subtle);
-                --pico-secondary-focus: transparent;
-                --pico-code-background-color: var(--background-muted);
-                --pico-border-radius: 0;
-                --pico-card-border-radius: 0;
-            }
+                            /* Pico overrides */
+                            --pico-font-family: "IBM Plex Sans", sans-serif;
+                            --pico-font-family-monospace: "IBM Plex Mono", monospace;
+                            --pico-background-color: var(--background);
+                            --pico-card-background-color: var(--background-subtle);
+                            --pico-card-sectioning-background-color: var(
+                                --background-subtle
+                            );
+                            --pico-color: var(--foreground);
+                            --pico-muted-color: var(--foreground-muted);
+                            --pico-muted-border-color: var(--border-default);
+                            --pico-primary: var(--accent-green);
+                            --pico-primary-inverse: var(--background);
+                            --pico-primary-background: var(--background-subtle);
+                            --pico-primary-focus: transparent;
+                            --pico-secondary-background: var(--background-subtle);
+                            --pico-secondary-focus: transparent;
+                            --pico-code-background-color: var(--background-muted);
+                            --pico-border-radius: 0;
+                            --pico-card-border-radius: 0;
+                        }
 
-            /* Reset all border-radius from Pico */
-            *,
-            *::before,
-            *::after {
-                border-radius: 0 !important;
-            }
+                        /* Reset all border-radius from Pico */
+                        *,
+                        *::before,
+                        *::after {
+                            border-radius: 0 !important;
+                        }
 
-            html,
-            body {
-                height: 100%;
-                margin: 0;
-                overflow: hidden;
-                font-size: 14px;
-            }
+                        html,
+                        body {
+                            height: 100%;
+                            margin: 0;
+                            overflow: hidden;
+                            font-size: 14px;
+                        }
 
-            /* ---------- Shell layout ---------- */
-            .shell {
-                display: grid;
-                grid-template-columns: var(--sidebar-width) 1fr;
-                height: 100vh;
-            }
+                        /* ---------- Shell layout ---------- */
+                        .shell {
+                            display: grid;
+                            grid-template-columns: var(--sidebar-width) 1fr;
+                            height: 100vh;
+                        }
 
-            /* ---------- Sidebar ---------- */
-            .sidebar {
-                background: var(--background-subtle);
-                border-right: 1px solid var(--background-subtle);
-                overflow-y: auto;
-                display: flex;
-                flex-direction: column;
-            }
-            .sidebar-header {
-                padding: 1.25rem 1.25rem 0.75rem;
-                border-bottom: 1px solid var(--border-default);
-                flex-shrink: 0;
-                display: flex;
-                align-items: baseline;
-                gap: 0.5rem;
-            }
-            .sidebar-header h1 {
-                font-size: 1.4rem;
-                font-weight: 600;
-                margin: 0;
-                letter-spacing: -0.01em;
-                white-space: nowrap;
-            }
-            .sidebar-header small {
-                color: var(--foreground-subtle);
-                font-size: 0.82rem;
-            }
-            .run-list {
-                margin: 0;
-                padding: 0;
-                overflow-y: auto;
-                flex: 1 1 auto;
-                /* Force top-alignment: override any centering from Pico or flex defaults */
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-start;
-                align-items: stretch;
-            }
-            .status-pill {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0;
-                font-size: 0.64rem;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                line-height: 1.4;
-                color: var(--foreground-subtle);
-                border: none;
-            }
-            .status-pill.timeout,
-            .status-pill.stalled,
-            .status-pill.crashed {
-                color: var(--accent-red);
-            }
-            /* ---------- Run items ---------- */
-            .run-list .run-item {
-                padding: 0.55rem calc(0.75rem + 5px) 0.55rem calc(0.5rem + 6px);
-                cursor: pointer;
-                background: var(--background-subtle);
-                color: var(--foreground);
-                border-bottom: 1px solid var(--border-muted);
-                transition: background-color 120ms ease;
-            }
-            .run-list .run-item:hover,
-            .run-list .run-item.active {
-                background: var(--background);
-                border-top: none;
-                border-right: none;
-            }
-            .run-list .run-item.active {
-                border-left: 5px solid #5b9bd5;
-                padding-left: calc(0.5rem + 1px);
-                border-top: none;
-                border-right: none;
-            }
+                        /* ---------- Sidebar ---------- */
+                        .sidebar {
+                            background: var(--background-subtle);
+                            border-right: 1px solid var(--background-subtle);
+                            overflow-y: auto;
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .sidebar-header {
+                            padding: 1.25rem 1.25rem 0.75rem;
+                            border-bottom: 1px solid var(--border-default);
+                            flex-shrink: 0;
+                            display: flex;
+                            align-items: baseline;
+                            gap: 0.5rem;
+                        }
+                        .sidebar-header h1 {
+                            font-size: 1.4rem;
+                            font-weight: 600;
+                            margin: 0;
+                            letter-spacing: -0.01em;
+                            white-space: nowrap;
+                        }
+                        .sidebar-header small {
+                            color: var(--foreground-subtle);
+                            font-size: 0.82rem;
+                        }
+                        .run-list {
+                            margin: 0;
+                            padding: 0;
+                            overflow-y: auto;
+                            flex: 1 1 auto;
+                            /* Force top-alignment: override any centering from Pico or flex defaults */
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: flex-start;
+                            align-items: stretch;
+                        }
+                        .status-pill {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                            font-size: 0.64rem;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 0.08em;
+                            line-height: 1.4;
+                            color: var(--foreground-subtle);
+                            border: none;
+                        }
+                        .status-pill.timeout,
+                        .status-pill.stalled,
+                        .status-pill.crashed {
+                            color: var(--accent-red);
+                        }
+                        /* ---------- Run items ---------- */
+                        .run-list .run-item {
+                            padding: 0.55rem calc(0.75rem + 5px) 0.55rem calc(0.5rem + 6px);
+                            cursor: pointer;
+                            background: var(--background-subtle);
+                            color: var(--foreground);
+                            border-bottom: 1px solid var(--border-muted);
+                            transition: background-color 120ms ease;
+                        }
+                        .run-list .run-item:hover,
+                        .run-list .run-item.active {
+                            background: var(--background);
+                            border-top: none;
+                            border-right: none;
+                        }
+                        .run-list .run-item.active {
+                            border-left: 5px solid #5b9bd5;
+                            padding-left: calc(0.5rem + 1px);
+                            border-top: none;
+                            border-right: none;
+                        }
 
-            /* Suite header */
-            .run-list .suite-run-header {
-                background: #252b33;
-                border-bottom: none;
-                border-top: 5px solid var(--suite-accent);
-                border-left: 5px solid var(--suite-accent);
-                text-transform: uppercase;
-            }
-            .run-list .suite-run-header:hover,
-            .run-list .suite-run-header.active {
-                background: #252b33;
-                border-top: 5px solid var(--suite-accent);
-                padding-left: calc(0.5rem + 6px);
-            }
-            /* Selected suite: light grey left+top edge on header and all children */
-            .run-list .suite-selected .suite-run-header {
-                border-left-color: #5b9bd5;
-                border-top-color: #5b9bd5;
-            }
-            .run-list .suite-selected .run-item-child {
-                border-left-color: #5b9bd5;
-            }
-            /* Single child selected within a suite */
-            .run-list .run-item-child.active {
-                border-left-color: #5b9bd5;
-                padding-left: 1.7rem;
-            }
+                        /* Suite header */
+                        .run-list .suite-run-header {
+                            background: #252b33;
+                            border-bottom: none;
+                            border-top: 5px solid var(--suite-accent);
+                            border-left: 5px solid var(--suite-accent);
+                            text-transform: uppercase;
+                        }
+                        .run-list .suite-run-header:hover,
+                        .run-list .suite-run-header.active {
+                            background: #252b33;
+                            border-top: 5px solid var(--suite-accent);
+                            padding-left: calc(0.5rem + 6px);
+                        }
+                        /* Selected suite: light grey left+top edge on header and all children */
+                        .run-list .suite-selected .suite-run-header {
+                            border-left-color: #5b9bd5;
+                            border-top-color: #5b9bd5;
+                        }
+                        .run-list .suite-selected .run-item-child {
+                            border-left-color: #5b9bd5;
+                        }
+                        /* Single child selected within a suite */
+                        .run-list .run-item-child.active {
+                            border-left-color: #5b9bd5;
+                            padding-left: 1.7rem;
+                        }
 
-            /* Child items: left border to link with suite header */
-            .run-list .run-item-child {
-                padding: 0.45rem calc(0.75rem + 5px) 0.45rem 1.7rem;
-                border-left: 5px solid var(--suite-accent);
-                position: relative;
-            }
-            /* Vertical line spanning full height */
-            .run-list .run-item-child::before {
-                content: "";
-                position: absolute;
-                left: 0.75rem;
-                top: 0;
-                bottom: 0;
-                width: 1px;
-                background: var(--foreground-subtle);
-            }
-            /* Horizontal branch connector */
-            .run-list .run-item-child::after {
-                content: "";
-                position: absolute;
-                left: 0.75rem;
-                top: 50%;
-                width: 0.5rem;
-                height: 1px;
-                background: var(--foreground-subtle);
-            }
-            /* Last child: vertical line stops at the branch */
-            .run-list .run-item-child:last-child::before {
-                bottom: 50%;
-            }
-            .suite-run-children {
-            }
-            .run-list .run-item-child:hover,
-            .run-list .run-item-child.active {
-                background: var(--background);
-            }
+                        /* Child items: left border to link with suite header */
+                        .run-list .run-item-child {
+                            padding: 0.45rem calc(0.75rem + 5px) 0.45rem 1.7rem;
+                            border-left: 5px solid var(--suite-accent);
+                            position: relative;
+                        }
+                        /* Vertical line spanning full height */
+                        .run-list .run-item-child::before {
+                            content: "";
+                            position: absolute;
+                            left: 0.75rem;
+                            top: 0;
+                            bottom: 0;
+                            width: 1px;
+                            background: var(--foreground-subtle);
+                        }
+                        /* Horizontal branch connector */
+                        .run-list .run-item-child::after {
+                            content: "";
+                            position: absolute;
+                            left: 0.75rem;
+                            top: 50%;
+                            width: 0.5rem;
+                            height: 1px;
+                            background: var(--foreground-subtle);
+                        }
+                        /* Last child: vertical line stops at the branch */
+                        .run-list .run-item-child:last-child::before {
+                            bottom: 50%;
+                        }
+                        .suite-run-children {
+                        }
+                        .run-list .run-item-child:hover,
+                        .run-list .run-item-child.active {
+                            background: var(--background);
+                        }
 
-            .run-item-top {
-                display: flex;
-                align-items: center;
-                gap: 0.4rem;
-            }
-            .run-item-name {
-                font-weight: 600;
-                font-size: 0.88rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                flex: 1;
-                color: #fff;
-            }
-            .run-item-meta {
-                display: flex;
-                gap: 0.5rem;
-                font-size: 0.82rem;
-                color: var(--foreground-subtle);
-                margin-top: 0.15rem;
-            }
+                        .run-item-top {
+                            display: flex;
+                            align-items: center;
+                            gap: 0.4rem;
+                        }
+                        .run-item-name {
+                            font-weight: 600;
+                            font-size: 0.88rem;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            flex: 1;
+                            color: #fff;
+                        }
+                        .run-item-meta {
+                            display: flex;
+                            gap: 0.5rem;
+                            font-size: 0.82rem;
+                            color: var(--foreground-subtle);
+                            margin-top: 0.15rem;
+                        }
 
-            /* ---------- Score badge ---------- */
-            .badge {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                min-width: 1.9rem;
-                padding: 0.05rem 0.35rem;
-                font-size: 0.8rem;
-                font-weight: 700;
-                font-variant-numeric: tabular-nums;
-                color: var(--background);
-                flex-shrink: 0;
-                line-height: 1.4;
-            }
+                        /* ---------- Score badge ---------- */
+                        .badge {
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-width: 1.9rem;
+                            padding: 0.05rem 0.35rem;
+                            font-size: 0.8rem;
+                            font-weight: 700;
+                            font-variant-numeric: tabular-nums;
+                            color: var(--background);
+                            flex-shrink: 0;
+                            line-height: 1.4;
+                        }
 
-            /* ---------- Main area ---------- */
-            .main {
-                overflow-y: auto;
-                padding: 1.25rem 1.75rem 3rem;
-            }
-            .main h2 {
-                font-size: 1.4rem;
-                font-weight: 600;
-                margin-bottom: 0.6rem;
-                margin-top: 0;
-            }
-            .main h3 {
-                font-size: 0.95rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-                color: var(--foreground-subtle);
-                margin-top: 2rem;
-                margin-bottom: 0.6rem;
-            }
+                        .epoch-badge {
+                            background: #1f6feb;
+                            font-size: 0.7rem;
+                        }
+                        .severity-hard { color: #f85149; font-weight: 700; }
+                        .severity-significant { color: #d29922; font-weight: 700; }
+                        .severity-drift { color: var(--foreground-subtle); }
+                        .regression-card { margin-top: 1rem; }
+                        .regression-summary { font-weight: 600; margin-top: 0.75rem; }
+                        .epoch-detail-row td {
+                            padding: 0.25rem 0.6rem !important;
+                            font-size: 0.82rem;
+                            color: var(--foreground-subtle);
+                            background: var(--background-muted);
+                        }
+                        /* ---------- Main area ---------- */
+                        .main {
+                            overflow-y: auto;
+                            padding: 1.25rem 1.75rem 3rem;
+                        }
+                        .main h2 {
+                            font-size: 1.4rem;
+                            font-weight: 600;
+                            margin-bottom: 0.6rem;
+                            margin-top: 0;
+                        }
+                        .main h3 {
+                            font-size: 0.95rem;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.06em;
+                            color: var(--foreground-subtle);
+                            margin-top: 2rem;
+                            margin-bottom: 0.6rem;
+                        }
 
-            /* ---------- Meta bar (compact inline) ---------- */
-            .meta-grid {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: baseline;
-                gap: 0;
-                margin-bottom: 0.75rem;
-                padding: 0.3rem 0;
-            }
-            .meta-card {
-                display: inline-flex;
-                align-items: baseline;
-                gap: 0.3rem;
-                padding: 0 0.65rem;
-                border-right: 1px solid var(--border-default);
-                background: none;
-                border-top: none;
-                border-bottom: none;
-                border-left: none;
-            }
-            .meta-card:first-child {
-                padding-left: 0;
-            }
-            .meta-card:last-child,
-            .meta-card:last-of-type {
-                border-right: none;
-            }
-            .meta-card dt {
-                font-size: 0.82rem;
-                text-transform: uppercase;
-                letter-spacing: 0.04em;
-                color: var(--foreground-subtle);
-                margin-bottom: 0;
-                white-space: nowrap;
-            }
-            .meta-card dd {
-                margin: 0;
-                font-size: 0.82rem;
-                font-weight: 600;
-                color: var(--foreground);
-                white-space: nowrap;
-            }
-            .meta-card dd code {
-                font-size: 0.85rem;
-                font-weight: 400;
-            }
+                        /* ---------- Meta bar (compact inline) ---------- */
+                        .meta-grid {
+                            display: flex;
+                            flex-wrap: wrap;
+                            align-items: baseline;
+                            gap: 0;
+                            margin-bottom: 0.75rem;
+                            padding: 0.3rem 0;
+                        }
+                        .meta-card {
+                            display: inline-flex;
+                            align-items: baseline;
+                            gap: 0.3rem;
+                            padding: 0 0.65rem;
+                            border-right: 1px solid var(--border-default);
+                            background: none;
+                            border-top: none;
+                            border-bottom: none;
+                            border-left: none;
+                        }
+                        .meta-card:first-child {
+                            padding-left: 0;
+                        }
+                        .meta-card:last-child,
+                        .meta-card:last-of-type {
+                            border-right: none;
+                        }
+                        .meta-card dt {
+                            font-size: 0.82rem;
+                            text-transform: uppercase;
+                            letter-spacing: 0.04em;
+                            color: var(--foreground-subtle);
+                            margin-bottom: 0;
+                            white-space: nowrap;
+                        }
+                        .meta-card dd {
+                            margin: 0;
+                            font-size: 0.82rem;
+                            font-weight: 600;
+                            color: var(--foreground);
+                            white-space: nowrap;
+                        }
+                        .meta-card dd code {
+                            font-size: 0.85rem;
+                            font-weight: 400;
+                        }
 
-            /* ---------- Content cards ---------- */
-            th {
-                text-transform: uppercase;
-                font-size: 0.75rem;
-                letter-spacing: 0.06em;
-            }
-            .content-card {
-                background: var(--background-subtle);
-                border: none;
-                padding: 1.25rem 1.5rem;
-                margin-bottom: 1.25rem;
-            }
-            .content-card h3 {
-                margin-top: 0;
-            }
-            .content-card h3:first-child {
-                margin-top: 0;
-            }
+                        /* ---------- Content cards ---------- */
+                        th {
+                            text-transform: uppercase;
+                            font-size: 0.75rem;
+                            letter-spacing: 0.06em;
+                        }
+                        .content-card {
+                            background: var(--background-subtle);
+                            border: none;
+                            padding: 1.25rem 1.5rem;
+                            margin-bottom: 1.25rem;
+                        }
+                        .content-card h3 {
+                            margin-top: 0;
+                        }
+                        .content-card h3:first-child {
+                            margin-top: 0;
+                        }
 
-            /* ---------- Score bars ---------- */
-            .score-section {
-                margin-bottom: 0;
-                max-width: 640px;
-            }
-            .score-row {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                margin-bottom: 0.3rem;
-            }
-            .score-label {
-                width: 130px;
-                font-size: 0.9rem;
-                flex-shrink: 0;
-                text-align: right;
-                color: var(--foreground-muted);
-            }
-            .score-bar-track {
-                flex: 1;
-                height: 10px;
-                background: var(--background);
-                border: none;
-                overflow: hidden;
-            }
-            .score-bar-fill {
-                height: 100%;
-                transition: width 400ms ease;
-            }
-            .score-value {
-                width: 2.5rem;
-                font-size: 0.9rem;
-                font-weight: 700;
-                font-variant-numeric: tabular-nums;
-                text-align: right;
-                flex-shrink: 0;
-            }
-            .score-layout {
-                display: flex;
-                align-items: stretch;
-                gap: 1.25rem;
-            }
-            .score-bars {
-                flex: 1;
-                min-width: 0;
-            }
-            .score-overall {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 0.5rem 0.75rem;
-                background: var(--background);
-                flex-shrink: 0;
-                min-width: 5.5rem;
-                align-self: stretch;
-            }
-            .score-overall-value {
-                font-size: 2.2rem;
-                font-weight: 700;
-                font-variant-numeric: tabular-nums;
-                line-height: 1;
-            }
-            .score-overall-label {
-                font-size: 0.75rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-                color: var(--foreground-subtle);
-                margin-top: 0.35rem;
-            }
+                        /* ---------- Score bars ---------- */
+                        .score-section {
+                            margin-bottom: 0;
+                            max-width: 640px;
+                        }
+                        .score-row {
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            margin-bottom: 0.3rem;
+                        }
+                        .score-label {
+                            width: 130px;
+                            font-size: 0.9rem;
+                            flex-shrink: 0;
+                            text-align: right;
+                            color: var(--foreground-muted);
+                        }
+                        .score-bar-track {
+                            flex: 1;
+                            height: 10px;
+                            background: var(--background);
+                            border: none;
+                            overflow: hidden;
+                        }
+                        .score-bar-fill {
+                            height: 100%;
+                            transition: width 400ms ease;
+                        }
+                        .score-value {
+                            width: 2.5rem;
+                            font-size: 0.9rem;
+                            font-weight: 700;
+                            font-variant-numeric: tabular-nums;
+                            text-align: right;
+                            flex-shrink: 0;
+                        }
+                        .score-layout {
+                            display: flex;
+                            align-items: stretch;
+                            gap: 1.25rem;
+                        }
+                        .score-bars {
+                            flex: 1;
+                            min-width: 0;
+                        }
+                        .score-overall {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0.5rem 0.75rem;
+                            background: var(--background);
+                            flex-shrink: 0;
+                            min-width: 5.5rem;
+                            align-self: stretch;
+                        }
+                        .score-overall-value {
+                            font-size: 2.2rem;
+                            font-weight: 700;
+                            font-variant-numeric: tabular-nums;
+                            line-height: 1;
+                        }
+                        .score-overall-label {
+                            font-size: 0.75rem;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.06em;
+                            color: var(--foreground-subtle);
+                            margin-top: 0.35rem;
+                        }
 
-            /* ---------- Findings ---------- */
-            .findings-list {
-                max-width: 720px;
-                list-style: disc;
-                padding-left: 1.25rem;
-                margin: 0;
-            }
-            .finding-item {
-                font-size: 0.95rem;
-                line-height: 1.6;
-                padding: 0.1rem 0;
-                margin-bottom: 0.15rem;
-                color: var(--foreground-muted);
-            }
-            .finding-item::marker {
-                color: var(--foreground-subtle);
-            }
+                        /* ---------- Findings ---------- */
+                        .findings-list {
+                            max-width: 720px;
+                            list-style: disc;
+                            padding-left: 1.25rem;
+                            margin: 0;
+                        }
+                        .finding-item {
+                            font-size: 0.95rem;
+                            line-height: 1.6;
+                            padding: 0.1rem 0;
+                            margin-bottom: 0.15rem;
+                            color: var(--foreground-muted);
+                        }
+                        .finding-item::marker {
+                            color: var(--foreground-subtle);
+                        }
 
-            /* ---------- Judge reasons ---------- */
-            .reason-list {
-                max-width: 720px;
-            }
-            .reason-block {
-                margin-bottom: 1.5rem;
-            }
-            .reason-block h4 {
-                font-size: 0.95rem;
-                margin-bottom: 0.4rem;
-                margin-top: 0;
-                padding-top: 0.5rem;
-            }
-            .reason-block p {
-                font-size: 0.95rem;
-                color: var(--foreground-muted);
-                margin: 0;
-                line-height: 1.6;
-            }
+                        /* ---------- Judge reasons ---------- */
+                        .reason-list {
+                            max-width: 720px;
+                        }
+                        .reason-block {
+                            margin-bottom: 1.5rem;
+                        }
+                        .reason-block h4 {
+                            font-size: 0.95rem;
+                            margin-bottom: 0.4rem;
+                            margin-top: 0;
+                            padding-top: 0.5rem;
+                        }
+                        .reason-block p {
+                            font-size: 0.95rem;
+                            color: var(--foreground-muted);
+                            margin: 0;
+                            line-height: 1.6;
+                        }
 
-            /* ---------- Timeline filter pills ---------- */
-            .timeline-filters {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.35rem;
-                margin-bottom: 0.75rem;
-            }
-            .filter-pill {
-                font-size: 0.8rem;
-                font-weight: 600;
-                padding: 0.2rem 0.6rem;
-                background: transparent;
-                border: 1px solid var(--foreground-subtle);
-                color: var(--foreground-subtle);
-                cursor: pointer;
-                font-family: var(--pico-font-family);
-                transition:
-                    background 100ms ease,
-                    color 100ms ease;
-            }
-            .filter-pill:hover {
-                color: var(--foreground);
-            }
-            .filter-pill.active {
-                background: var(--accent-blue);
-                color: var(--background);
-                border-color: var(--accent-blue);
-            }
+                        /* ---------- Timeline filter pills ---------- */
+                        .timeline-filters {
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 0.35rem;
+                            margin-bottom: 0.75rem;
+                        }
+                        .filter-pill {
+                            font-size: 0.8rem;
+                            font-weight: 600;
+                            padding: 0.2rem 0.6rem;
+                            background: transparent;
+                            border: 1px solid var(--foreground-subtle);
+                            color: var(--foreground-subtle);
+                            cursor: pointer;
+                            font-family: var(--pico-font-family);
+                            transition:
+                                background 100ms ease,
+                                color 100ms ease;
+                        }
+                        .filter-pill:hover {
+                            color: var(--foreground);
+                        }
+                        .filter-pill.active {
+                            background: var(--accent-blue);
+                            color: var(--background);
+                            border-color: var(--accent-blue);
+                        }
 
-            /* ---------- Unified timeline ---------- */
-            .log-list {
-                border: 1px solid var(--border-muted);
-            }
-            .log-list > :nth-child(odd) {
-                background: var(--background);
-            }
-            .timeline-row {
-                display: grid;
-                grid-template-columns: 5.5rem 4.5rem 1fr;
-                column-gap: 0.75rem;
-                padding: 0.55rem 0.75rem;
-                font-size: 0.85rem;
-                align-items: baseline;
-            }
-            .kind-badge {
-                font-size: 0.7rem;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.04em;
-                padding: 0.1rem 0.35rem;
-                text-align: center;
-                white-space: nowrap;
-            }
-            .kind-badge.kind-tool {
-                background: #1e3a5f;
-                color: #93c5fd;
-            }
-            .kind-badge.kind-file {
-                background: #713f12;
-                color: #fde68a;
-            }
-            .kind-badge.kind-plugin {
-                background: #3b1f6e;
-                color: #c4b5fd;
-            }
-            .kind-badge.kind-test {
-                background: #22543d;
-                color: #86efac;
-            }
-            .kind-badge.kind-phase {
-                background: #4a2020;
-                color: #fca5a5;
-            }
-            .timeline-content {
-                min-width: 0;
-            }
-            .timeline-ts {
-                color: var(--foreground-subtle);
-                font-family: var(--pico-font-family-monospace, monospace);
-                font-size: 0.8rem;
-                flex-shrink: 0;
-            }
-            .tool-name {
-                font-weight: 600;
-                font-size: 0.85rem;
-            }
-            .tool-args {
-                color: var(--foreground-subtle);
-                font-family: var(--pico-font-family-monospace, monospace);
-                font-size: 0.82rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                max-width: 500px;
-            }
-            .tool-result {
-                font-family: var(--pico-font-family-monospace, monospace);
-                font-size: 0.8rem;
-                line-height: 1.45;
-                white-space: normal;
-                word-break: break-all;
-                background: var(--background-muted);
-                padding: 0.5rem 0.6rem;
-                margin-top: 0.25rem;
-                max-height: 250px;
-                overflow-y: auto;
-            }
-            .tool-result span {
-                white-space: pre-wrap;
-            }
-            .file-write-item {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                font-size: 0.85rem;
-            }
-            .file-path {
-                font-family: var(--pico-font-family-monospace, monospace);
-                font-size: 0.82rem;
-            }
-            .label-tag {
-                display: inline-block;
-                font-size: 0.75rem;
-                padding: 0.05rem 0.35rem;
-                background: var(--background-emphasis);
-                color: var(--foreground-muted);
-                text-transform: uppercase;
-                letter-spacing: 0.03em;
-                font-weight: 600;
-            }
-            .label-tag.test {
-                background: #22543d;
-                color: #86efac;
-            }
-            .label-tag.production {
-                background: #713f12;
-                color: #fde68a;
-            }
-            .label-tag.config {
-                background: #1e3a5f;
-                color: #93c5fd;
-            }
+                        /* ---------- Unified timeline ---------- */
+                        .log-list {
+                            border: 1px solid var(--border-muted);
+                        }
+                        .log-list > :nth-child(odd) {
+                            background: var(--background);
+                        }
+                        .timeline-row {
+                            display: grid;
+                            grid-template-columns: 5.5rem 4.5rem 1fr;
+                            column-gap: 0.75rem;
+                            padding: 0.55rem 0.75rem;
+                            font-size: 0.85rem;
+                            align-items: baseline;
+                        }
+                        .kind-badge {
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.04em;
+                            padding: 0.1rem 0.35rem;
+                            text-align: center;
+                            white-space: nowrap;
+                        }
+                        .kind-badge.kind-tool {
+                            background: #1e3a5f;
+                            color: #93c5fd;
+                        }
+                        .kind-badge.kind-file {
+                            background: #713f12;
+                            color: #fde68a;
+                        }
+                        .kind-badge.kind-plugin {
+                            background: #3b1f6e;
+                            color: #c4b5fd;
+                        }
+                        .kind-badge.kind-test {
+                            background: #22543d;
+                            color: #86efac;
+                        }
+                        .kind-badge.kind-phase {
+                            background: #4a2020;
+                            color: #fca5a5;
+                        }
+                        .timeline-content {
+                            min-width: 0;
+                        }
+                        .timeline-ts {
+                            color: var(--foreground-subtle);
+                            font-family: var(--pico-font-family-monospace, monospace);
+                            font-size: 0.8rem;
+                            flex-shrink: 0;
+                        }
+                        .tool-name {
+                            font-weight: 600;
+                            font-size: 0.85rem;
+                        }
+                        .tool-args {
+                            color: var(--foreground-subtle);
+                            font-family: var(--pico-font-family-monospace, monospace);
+                            font-size: 0.82rem;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            max-width: 500px;
+                        }
+                        .tool-result {
+                            font-family: var(--pico-font-family-monospace, monospace);
+                            font-size: 0.8rem;
+                            line-height: 1.45;
+                            white-space: normal;
+                            word-break: break-all;
+                            background: var(--background-muted);
+                            padding: 0.5rem 0.6rem;
+                            margin-top: 0.25rem;
+                            max-height: 250px;
+                            overflow-y: auto;
+                        }
+                        .tool-result span {
+                            white-space: pre-wrap;
+                        }
+                        .file-write-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            font-size: 0.85rem;
+                        }
+                        .file-path {
+                            font-family: var(--pico-font-family-monospace, monospace);
+                            font-size: 0.82rem;
+                        }
+                        .label-tag {
+                            display: inline-block;
+                            font-size: 0.75rem;
+                            padding: 0.05rem 0.35rem;
+                            background: var(--background-emphasis);
+                            color: var(--foreground-muted);
+                            text-transform: uppercase;
+                            letter-spacing: 0.03em;
+                            font-weight: 600;
+                        }
+                        .label-tag.test {
+                            background: #22543d;
+                            color: #86efac;
+                        }
+                        .label-tag.production {
+                            background: #713f12;
+                            color: #fde68a;
+                        }
+                        .label-tag.config {
+                            background: #1e3a5f;
+                            color: #93c5fd;
+                        }
 
-            /* ---------- Phase change timeline ---------- */
-            .phase-item {
-                display: flex;
-                align-items: center;
-                gap: 0.35rem;
-                font-size: 0.85rem;
-            }
-            .phase-arrow {
-                color: var(--foreground-subtle);
-                font-size: 0.82rem;
-            }
-            .phase-name {
-                font-weight: 600;
-                font-size: 0.85rem;
-            }
+                        /* ---------- Phase change timeline ---------- */
+                        .phase-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 0.35rem;
+                            font-size: 0.85rem;
+                        }
+                        .phase-arrow {
+                            color: var(--foreground-subtle);
+                            font-size: 0.82rem;
+                        }
+                        .phase-name {
+                            font-weight: 600;
+                            font-size: 0.85rem;
+                        }
 
-            /* ---------- Empty / loading states ---------- */
-            .empty-state {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                color: var(--foreground-subtle);
-                text-align: center;
-                padding: 1.5rem 1rem;
-                /* Top-align, not center -- prevents pushing run list down */
-                justify-content: flex-start;
-                padding-top: 2.5rem;
-            }
-            .main .empty-state {
-                /* Main panel empty states can center */
-                justify-content: center;
-                height: 100%;
-                padding-top: 2rem;
-            }
-            .empty-state p {
-                font-size: 0.82rem;
-                max-width: 280px;
-                margin: 0;
-            }
+                        /* ---------- Empty / loading states ---------- */
+                        .empty-state {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            color: var(--foreground-subtle);
+                            text-align: center;
+                            padding: 1.5rem 1rem;
+                            /* Top-align, not center -- prevents pushing run list down */
+                            justify-content: flex-start;
+                            padding-top: 2.5rem;
+                        }
+                        .main .empty-state {
+                            /* Main panel empty states can center */
+                            justify-content: center;
+                            height: 100%;
+                            padding-top: 2rem;
+                        }
+                        .empty-state p {
+                            font-size: 0.82rem;
+                            max-width: 280px;
+                            margin: 0;
+                        }
 
-            /* ---------- Live badge ---------- */
-            .badge-live {
-                display: inline-flex;
-                align-items: center;
-                gap: 0.3rem;
-                padding: 0.05rem 0.45rem;
-                font-size: 0.7rem;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.04em;
-                color: var(--accent-green);
-                border: 1px solid var(--accent-green);
-                flex-shrink: 0;
-                line-height: 1.4;
-            }
-            .badge-live::before {
-                content: "";
-                width: 6px;
-                height: 6px;
-                background: var(--accent-green);
-                border-radius: 50% !important;
-                animation: pulse 1.5s ease-in-out infinite;
-            }
-            @keyframes pulse {
-                0%,
-                100% {
-                    opacity: 1;
-                }
-                50% {
-                    opacity: 0.3;
-                }
-            }
+                        /* ---------- Live badge ---------- */
+                        .badge-live {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.3rem;
+                            padding: 0.05rem 0.45rem;
+                            font-size: 0.7rem;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 0.04em;
+                            color: var(--accent-green);
+                            border: 1px solid var(--accent-green);
+                            flex-shrink: 0;
+                            line-height: 1.4;
+                        }
+                        .badge-live::before {
+                            content: "";
+                            width: 6px;
+                            height: 6px;
+                            background: var(--accent-green);
+                            border-radius: 50% !important;
+                            animation: pulse 1.5s ease-in-out infinite;
+                        }
+                        @keyframes pulse {
+                            0%,
+                            100% {
+                                opacity: 1;
+                            }
+                            50% {
+                                opacity: 0.3;
+                            }
+                        }
 
-            /* ---------- Inline toggle buttons (session detail expand/collapse) ---------- */
-            .inline-toggle {
-                margin-left: 0.35rem;
-                padding: 0;
-                font-size: 0.82rem;
-                background: none;
-                border: none;
-                color: var(--foreground-muted);
-                cursor: pointer;
-                line-height: 1;
-                transition: transform 0.15s ease;
-                display: inline-block;
-            }
-            .inline-toggle[aria-expanded="true"] {
-                transform: rotate(90deg);
-            }
-            .inline-toggle:hover {
-                color: var(--foreground);
-            }
+                        /* ---------- Inline toggle buttons (session detail expand/collapse) ---------- */
+                        .inline-toggle {
+                            margin-left: 0.35rem;
+                            padding: 0;
+                            font-size: 0.82rem;
+                            background: none;
+                            border: none;
+                            color: var(--foreground-muted);
+                            cursor: pointer;
+                            line-height: 1;
+                            transition: transform 0.15s ease;
+                            display: inline-block;
+                        }
+                        .inline-toggle[aria-expanded="true"] {
+                            transform: rotate(90deg);
+                        }
+                        .inline-toggle:hover {
+                            color: var(--foreground);
+                        }
 
-            /* ---------- Skip link ---------- */
-            .skip-link {
-                position: absolute;
-                top: -100%;
-                left: 1rem;
-                z-index: 1000;
-                padding: 0.55rem 0.75rem;
-                background: var(--accent-green);
-                color: var(--background);
-                font-size: 0.85rem;
-                font-weight: 600;
-                text-decoration: none;
-            }
-            .skip-link:focus {
-                top: 0.75rem;
-            }
+                        /* ---------- Skip link ---------- */
+                        .skip-link {
+                            position: absolute;
+                            top: -100%;
+                            left: 1rem;
+                            z-index: 1000;
+                            padding: 0.55rem 0.75rem;
+                            background: var(--accent-green);
+                            color: var(--background);
+                            font-size: 0.85rem;
+                            font-weight: 600;
+                            text-decoration: none;
+                        }
+                        .skip-link:focus {
+                            top: 0.75rem;
+                        }
 
-            /* ---------- Focus visible ---------- */
-            button:focus-visible,
-            details summary:focus-visible,
-            .skip-link:focus-visible {
-                outline: 2px solid var(--accent-blue);
-                outline-offset: 2px;
-            }
+                        /* ---------- Focus visible ---------- */
+                        button:focus-visible,
+                        details summary:focus-visible,
+                        .skip-link:focus-visible {
+                            outline: 2px solid var(--accent-blue);
+                            outline-offset: 2px;
+                        }
 
-            /* ---------- Reduced motion ---------- */
-            @media (prefers-reduced-motion: reduce) {
-                .score-bar-fill {
-                    transition: none;
-                }
-                .run-item {
-                    transition: none;
-                }
-                details summary::before {
-                    transition: none;
-                }
-            }
+                        /* ---------- Reduced motion ---------- */
+                        @media (prefers-reduced-motion: reduce) {
+                            .score-bar-fill {
+                                transition: none;
+                            }
+                            .run-item {
+                                transition: none;
+                            }
+                            details summary::before {
+                                transition: none;
+                            }
+                        }
 
-            /* ---------- Responsive ---------- */
-            @media (max-width: 768px) {
-                .shell {
-                    grid-template-columns: 1fr;
-                    grid-template-rows: auto 1fr;
-                }
-                .sidebar {
-                    border-right: none;
-                    border-bottom: 1px solid var(--border-default);
-                    max-height: 40vh;
-                }
-                .main {
-                    padding: 1rem 0.85rem;
-                }
-                .score-label {
-                    width: 90px;
-                }
-                .meta-grid {
-                    flex-direction: column;
-                    gap: 0.15rem;
-                }
-                .meta-card {
-                    border-right: none;
-                    padding: 0;
-                }
-            }
+                        /* ---------- Responsive ---------- */
+                        @media (max-width: 768px) {
+                            .shell {
+                                grid-template-columns: 1fr;
+                                grid-template-rows: auto 1fr;
+                            }
+                            .sidebar {
+                                border-right: none;
+                                border-bottom: 1px solid var(--border-default);
+                                max-height: 40vh;
+                            }
+                            .main {
+                                padding: 1rem 0.85rem;
+                            }
+                            .score-label {
+                                width: 90px;
+                            }
+                            .meta-grid {
+                                flex-direction: column;
+                                gap: 0.15rem;
+                            }
+                            .meta-card {
+                                border-right: none;
+                                padding: 0;
+                            }
+                        }
         </style>
     </head>
     <body x-data="evalViewer()" x-init="init()">
@@ -842,6 +857,11 @@
                                                 :style="'background-color:' + scoreColor(item.averageOverall)"
                                                 x-text="item.averageOverall"
                                             ></span>
+                                            <span
+                                                x-show="item.epochs > 1"
+                                                class="badge epoch-badge"
+                                                x-text="'x' + item.epochs"
+                                            ></span>
                                         </div>
                                         <div class="run-item-meta">
                                             <span x-text="formatSuiteRunLabel(item.suiteRunId)"></span>
@@ -863,7 +883,7 @@
                                                 <div class="run-item-top">
                                                     <span
                                                         class="run-item-name"
-                                                        x-text="run.trial + '/' + run.variant"
+                                                        x-text="formatRunLabel(run)"
                                                     ></span>
                                                     <span
                                                         x-show="run.status === 'running'"
@@ -875,6 +895,11 @@
                                                         class="badge"
                                                         :style="'background-color:' + scoreColor(run.overall)"
                                                         x-text="run.overall"
+                                                    ></span>
+                                                    <span
+                                                        x-show="run.epoch && run.totalEpochs > 1"
+                                                        class="badge epoch-badge"
+                                                        x-text="formatEpochLabel(run)"
                                                     ></span>
                                                 </div>
                                                 <div class="run-item-meta">
@@ -899,7 +924,7 @@
                                     <div class="run-item-top">
                                         <span
                                             class="run-item-name"
-                                            x-text="item.run.trial + '/' + item.run.variant"
+                                            x-text="formatRunLabel(item.run)"
                                         ></span>
                                         <span
                                             x-show="item.run.status === 'running'"
@@ -911,6 +936,11 @@
                                             class="badge"
                                             :style="'background-color:' + scoreColor(item.run.overall)"
                                             x-text="item.run.overall"
+                                        ></span>
+                                        <span
+                                            x-show="item.run.epoch && item.run.totalEpochs > 1"
+                                            class="badge epoch-badge"
+                                            x-text="formatEpochLabel(item.run)"
                                         ></span>
                                     </div>
                                     <div class="run-item-meta">
@@ -965,6 +995,12 @@
                             <dt>Status</dt>
                             <dd x-text="selectedSuite?.status"></dd>
                         </dl>
+                        <template x-if="selectedSuite?.epochs > 1">
+                            <dl class="meta-card">
+                                <dt>Epochs</dt>
+                                <dd x-text="selectedSuite?.epochs"></dd>
+                            </dl>
+                        </template>
                     </div>
 
                     <div class="content-card">
@@ -994,7 +1030,7 @@
                                         style="border-bottom: 1px solid var(--border-muted); cursor: pointer"
                                         @click="selectRun(run.dir)"
                                     >
-                                        <td style="padding: 0.5rem 0.6rem; font-weight: 500" x-text="run.trial + '/' + run.variant"></td>
+                                        <td style="padding: 0.5rem 0.6rem; font-weight: 500" x-text="formatRunLabel(run)"></td>
                                         <td style="text-align: center; padding: 0.5rem 0.6rem">
                                             <span
                                                 class="badge"
@@ -1019,7 +1055,7 @@
                                     <tr style="border-bottom: 1px solid var(--border-muted)">
                                         <th style="text-align: left; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Category</th>
                                         <template x-for="run in selectedSuite?.children || []" :key="run.dir">
-                                            <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle); font-size: 0.78rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis" x-text="run.trial"></th>
+                                            <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle); font-size: 0.78rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis" x-text="formatRunColumnLabel(run)"></th>
                                         </template>
                                     </tr>
                                     <template x-for="cat in suiteScoreCategories" :key="cat">
@@ -1037,6 +1073,69 @@
                                     </template>
                                 </table>
                             </div>
+                        </div>
+                    </template>
+
+                    <!-- Aggregated epoch details -->
+                    <template x-if="suiteReportData?.aggregated?.length > 0">
+                        <div class="content-card">
+                            <h3>Epoch Details</h3>
+                            <div style="overflow-x: auto">
+                                <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse">
+                                    <tr style="border-bottom: 1px solid var(--border-default)">
+                                        <th style="text-align: left; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Trial / Variant</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Mean</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">+/-</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Range</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Status</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Verify</th>
+                                    </tr>
+                                    <template x-for="agg in suiteReportData.aggregated" :key="agg.trial + '/' + agg.variant">
+                                        <tr style="border-bottom: 1px solid var(--border-muted)">
+                                            <td style="padding: 0.5rem 0.6rem; font-weight: 500" x-text="agg.trial + '/' + agg.variant"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem">
+                                                <span class="badge" :style="'background-color:' + scoreColor(agg.overall.mean)" x-text="agg.overall.mean"></span>
+                                            </td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem; color: var(--foreground-subtle)" x-text="agg.overall.stderr > 0 ? agg.overall.stderr : '—'"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem; color: var(--foreground-subtle)" x-text="agg.overall.min + '-' + agg.overall.max"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem" x-text="(agg.statusCounts?.completed || 0) + '/' + agg.epochs"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem" x-text="agg.verifyPassCount + '/' + agg.epochs"></td>
+                                        </tr>
+                                    </template>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Regression analysis -->
+                    <template x-if="suiteReportData?.comparison">
+                        <div class="content-card regression-card">
+                            <h3>Regression Analysis</h3>
+                            <div style="overflow-x: auto">
+                                <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse">
+                                    <tr style="border-bottom: 1px solid var(--border-default)">
+                                        <th style="text-align: left; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Trial / Variant</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Delta</th>
+                                        <th style="text-align: center; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Severity</th>
+                                        <th style="text-align: left; padding: 0.4rem 0.6rem; color: var(--foreground-subtle)">Finding</th>
+                                    </tr>
+                                    <template x-for="entry in suiteReportData.comparison.entries.filter(e => e.severity)" :key="entry.trial + '/' + entry.variant">
+                                        <tr style="border-bottom: 1px solid var(--border-muted)">
+                                            <td style="padding: 0.5rem 0.6rem; font-weight: 500" x-text="entry.trial + '/' + entry.variant"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem" x-text="entry.deltaOverall != null ? (entry.deltaOverall > 0 ? '+' : '') + entry.deltaOverall : '—'"></td>
+                                            <td style="text-align: center; padding: 0.5rem 0.6rem">
+                                                <span :class="'severity-' + entry.severity" x-text="entry.severity === 'drift' ? 'drift' : entry.severity.toUpperCase()"></span>
+                                            </td>
+                                            <td style="padding: 0.5rem 0.6rem; color: var(--foreground-subtle); font-size: 0.82rem" x-text="entry.findings[0] || ''"></td>
+                                        </tr>
+                                    </template>
+                                </table>
+                            </div>
+                            <p class="regression-summary" x-text="[
+                                suiteReportData.comparison.hardRegressionCount > 0 ? suiteReportData.comparison.hardRegressionCount + ' hard' : '',
+                                suiteReportData.comparison.significantRegressionCount > 0 ? suiteReportData.comparison.significantRegressionCount + ' significant' : '',
+                                suiteReportData.comparison.driftCount > 0 ? suiteReportData.comparison.driftCount + ' drift' : '',
+                            ].filter(Boolean).join(', ') || 'No regressions'"></p>
                         </div>
                     </template>
                 </div>
@@ -1463,699 +1562,755 @@
 
         <script>
             function evalViewer() {
-                return {
-                    runs: [],
-                    selectedDir: null,
-                    selectedSuite: null,
-                    suiteReports: {},
-                    report: null,
-                    loading: true,
-                    error: null,
-                    reportLoading: false,
-                    reportError: null,
-                    _liveInterval: null,
-                    _indexInterval: null,
-                    _eventSource: null,
-                    _sseConnected: false,
+                            return {
+                                runs: [],
+                                selectedDir: null,
+                                selectedSuite: null,
+                                suiteReports: {},
+                                suiteReportData: null,
+                                report: null,
+                                loading: true,
+                                error: null,
+                                reportLoading: false,
+                                reportError: null,
+                                _liveInterval: null,
+                                _indexInterval: null,
+                                _eventSource: null,
+                                _sseConnected: false,
 
-                    async init() {
-                        this._trySSE();
-                    },
+                                async init() {
+                                    this._trySSE();
+                                },
 
-                    // -- SSE mode -------------------------------------------------
+                                // -- SSE mode -------------------------------------------------
 
-                    _trySSE() {
-                        const source = new EventSource("/events");
-                        this._eventSource = source;
+                                _trySSE() {
+                                    const source = new EventSource("/events");
+                                    this._eventSource = source;
 
-                        source.onopen = () => {
-                            this._sseConnected = true;
-                            this.loading = false;
-                        };
-
-                        source.onmessage = (e) => {
-                            this._handleSSEEvent(JSON.parse(e.data));
-                        };
-
-                        source.onerror = () => {
-                            if (!this._sseConnected) {
-                                // SSE not available (e.g. served via npx serve)
-                                source.close();
-                                this._eventSource = null;
-                                this._initFilePolling();
-                            }
-                            // If already connected, EventSource auto-reconnects
-                        };
-                    },
-
-                    _handleSSEEvent(event) {
-                        switch (event.type) {
-                            case "index_updated":
-                                this.runs = event.runs;
-                                this.sortRuns();
-                                this._autoSelectIfNeeded();
-                                this.loading = false;
-                                break;
-
-                            case "run_started":
-                                if (!this.runs.find((r) => r.dir === event.dir)) {
-                                    this.runs.push({
-                                        dir: event.dir,
-                                        trial: event.trial,
-                                        variant: event.variant,
-                                        status: "running",
-                                        overall: 0,
-                                        durationMs: 0,
-                                        startedAt: new Date(event.timestamp).toISOString(),
-                                        workerModel: event.workerModel || "",
-                                        suite: event.suite,
-                                        suiteRunId: event.suiteRunId,
-                                    });
-                                    this.sortRuns();
-                                }
-                                break;
-
-                            case "run_progress":
-                                if (this.selectedDir === event.dir) {
-                                    this._fetchLive(event.dir);
-                                }
-                                break;
-
-                            case "run_completed": {
-                                const run = this.runs.find((r) => r.dir === event.dir);
-                                if (run) {
-                                    run.status = event.status;
-                                    run.overall = event.overall;
-                                    run.durationMs = event.durationMs;
-                                }
-                                if (this.selectedDir === event.dir) {
-                                    this._fetchReport(event.dir);
-                                }
-                                break;
-                            }
-                        }
-                    },
-
-                    _autoSelectIfNeeded() {
-                        if (this.selectedDir || this.selectedSuite) return;
-                        if (this.runs.length === 0) return;
-                        const runningRun = this.runs.find((r) => r.status === "running");
-                        if (runningRun) {
-                            this.selectRun(runningRun.dir);
-                        } else {
-                            const first = this.runList[0];
-                            if (first?.type === "suite") {
-                                this.selectSuite(first);
-                            } else if (first?.run) {
-                                this.selectRun(first.run.dir);
-                            }
-                        }
-                    },
-
-                    async _fetchReport(dir) {
-                        try {
-                            const resp = await fetch(`runs/${dir}/report.json`);
-                            if (resp.ok) {
-                                this.report = await resp.json();
-                                this.reportLoading = false;
-                            }
-                        } catch {}
-                    },
-
-                    // -- File polling fallback ------------------------------------
-
-                    async _initFilePolling() {
-                        try {
-                            const resp = await fetch("runs/index.json");
-                            if (!resp.ok) {
-                                if (resp.status === 404) {
-                                    this.runs = [];
-                                    this.error = null;
-                                } else {
-                                    throw new Error(
-                                        `Failed to load runs: ${resp.status}`,
-                                    );
-                                }
-                            } else {
-                                this.runs = await resp.json();
-                                this.sortRuns();
-                                this._autoSelectIfNeeded();
-                            }
-                            this._startIndexPolling();
-                        } catch (e) {
-                            this.error =
-                                e.message || "Failed to load run index.";
-                        } finally {
-                            this.loading = false;
-                        }
-                    },
-
-                    _startIndexPolling() {
-                        if (this._indexInterval)
-                            clearInterval(this._indexInterval);
-                        this._indexInterval = setInterval(async () => {
-                            try {
-                                const resp = await fetch("runs/index.json");
-                                if (resp.ok) {
-                                    this.runs = await resp.json();
-                                    this.sortRuns();
-                                }
-                            } catch {}
-                        }, 5000);
-                    },
-
-                    async selectSuite(suiteItem) {
-                        this.selectedDir = null;
-                        this.selectedSuite = suiteItem;
-                        this.report = null;
-                        this.reportLoading = true;
-                        this.reportError = null;
-                        this.suiteReports = {};
-                        if (this._liveInterval) {
-                            clearInterval(this._liveInterval);
-                            this._liveInterval = null;
-                        }
-                        try {
-                            const fetches = suiteItem.children.map(async (run) => {
-                                if (run.status === "running") return;
-                                try {
-                                    const resp = await fetch(`runs/${run.dir}/report.json`);
-                                    if (resp.ok) {
-                                        this.suiteReports[run.dir] = await resp.json();
-                                    }
-                                } catch {}
-                            });
-                            await Promise.all(fetches);
-                        } finally {
-                            this.reportLoading = false;
-                        }
-                    },
-
-                    async selectRun(dir) {
-                        if (this.selectedDir === dir && this.report) return;
-                        this.selectedSuite = null;
-                        this.selectedDir = dir;
-                        this.report = null;
-                        this.reportLoading = true;
-                        this.reportError = null;
-                        if (this._liveInterval) {
-                            clearInterval(this._liveInterval);
-                            this._liveInterval = null;
-                        }
-
-                        const run = this.runs.find((r) => r.dir === dir);
-                        const isLive = run?.status === "running";
-
-                        try {
-                            if (isLive) {
-                                await this._fetchLive(dir);
-                                // Only poll in file-polling mode; SSE handles updates via run_progress
-                                if (!this._sseConnected) {
-                                    this._liveInterval = setInterval(
-                                        () => this._pollLive(dir),
-                                        2000,
-                                    );
-                                }
-                            } else {
-                                await this._fetchReport(dir);
-                                if (!this.report) {
-                                    throw new Error("Failed to load report");
-                                }
-                            }
-                        } catch (e) {
-                            this.reportError =
-                                e.message || "Failed to load report.";
-                        } finally {
-                            this.reportLoading = false;
-                        }
-                    },
-
-                    async _fetchLive(dir) {
-                        const resp = await fetch(`runs/${dir}/live.json`);
-                        if (resp.ok) {
-                            this.report = await resp.json();
-                        }
-                    },
-
-                    async _pollLive(dir) {
-                        if (this.selectedDir !== dir) {
-                            clearInterval(this._liveInterval);
-                            this._liveInterval = null;
-                            return;
-                        }
-                        // Check if run completed
-                        try {
-                            const reportResp = await fetch(
-                                `runs/${dir}/report.json`,
-                            );
-                            if (reportResp.ok) {
-                                this.report = await reportResp.json();
-                                clearInterval(this._liveInterval);
-                                this._liveInterval = null;
-                                // Update run status in sidebar
-                                const run = this.runs.find(
-                                    (r) => r.dir === dir,
-                                );
-                                if (run) {
-                                    run.status =
-                                        this.report.meta?.status || "completed";
-                                    run.overall =
-                                        this.report.scores?.overall || 0;
-                                }
-                                this._startIndexPolling();
-                                this._scrollTimeline();
-                                return;
-                            }
-                        } catch {}
-                        // Still running — fetch live.json
-                        await this._fetchLive(dir);
-                        this._scrollTimeline();
-                    },
-
-                    _scrollTimeline() {
-                        const list = document.querySelector(".log-list");
-                        if (list) list.scrollTop = list.scrollHeight;
-                    },
-
-                    // Computed-style getter for score rows
-                    get suiteScoreCategories() {
-                        const cats = new Set();
-                        for (const report of Object.values(this.suiteReports)) {
-                            if (report?.scores?.deterministic) {
-                                for (const k of Object.keys(report.scores.deterministic)) cats.add(k);
-                            }
-                            if (report?.scores?.judge) {
-                                for (const k of Object.keys(report.scores.judge)) cats.add(k);
-                            }
-                        }
-                        return Array.from(cats);
-                    },
-
-                    get scoreRows() {
-                        if (!this.report?.scores) return [];
-                        const scores = this.report.scores;
-                        const rows = [];
-
-                        // Handle both nested format (deterministic + judge) and flat format
-                        if (scores.deterministic) {
-                            for (const [key, val] of Object.entries(
-                                scores.deterministic,
-                            )) {
-                                rows.push({
-                                    label: this.formatScoreKey(key),
-                                    value: val,
-                                    isOverall: false,
-                                });
-                            }
-                        }
-                        if (scores.judge) {
-                            for (const [key, val] of Object.entries(
-                                scores.judge,
-                            )) {
-                                rows.push({
-                                    label: this.formatScoreKey(key),
-                                    value: val,
-                                    isOverall: false,
-                                });
-                            }
-                        }
-
-                        // Flat format — add all keys except "overall"
-                        if (!scores.deterministic && !scores.judge) {
-                            for (const [key, val] of Object.entries(scores)) {
-                                if (key === "overall") continue;
-                                rows.push({
-                                    label: this.formatScoreKey(key),
-                                    value: val,
-                                    isOverall: false,
-                                });
-                            }
-                        }
-
-                        return rows;
-                    },
-
-                    get runList() {
-                        const groups = new Map();
-                        const items = [];
-
-                        for (const run of this.runs) {
-                            if (run.suite && run.suiteRunId) {
-                                if (!groups.has(run.suiteRunId)) {
-                                    const group = {
-                                        type: "suite",
-                                        suiteRunId: run.suiteRunId,
-                                        suite: run.suite,
-                                        sortKey: 0,
-                                        children: [],
+                                    source.onopen = () => {
+                                        this._sseConnected = true;
+                                        this.loading = false;
                                     };
-                                    groups.set(run.suiteRunId, group);
-                                    items.push(group);
-                                }
-                                const group = groups.get(run.suiteRunId);
-                                group.children.push(run);
-                                group.sortKey = Math.max(
-                                    group.sortKey,
-                                    this.runSortKey(run),
-                                );
-                            } else {
-                                items.push({
-                                    type: "standalone",
-                                    sortKey: this.runSortKey(run),
-                                    run,
-                                });
-                            }
+
+                                    source.onmessage = (e) => {
+                                        this._handleSSEEvent(JSON.parse(e.data));
+                                    };
+
+                                    source.onerror = () => {
+                                        if (!this._sseConnected) {
+                                            // SSE not available (e.g. served via npx serve)
+                                            source.close();
+                                            this._eventSource = null;
+                                            this._initFilePolling();
+                                        }
+                                        // If already connected, EventSource auto-reconnects
+                                    };
+                                },
+
+                                _handleSSEEvent(event) {
+                                    switch (event.type) {
+                                        case "index_updated":
+                                            this.runs = event.runs;
+                                            this.sortRuns();
+                                            this._autoSelectIfNeeded();
+                                            this.loading = false;
+                                            break;
+
+                                        case "run_started":
+                                            if (!this.runs.find((r) => r.dir === event.dir)) {
+                                                this.runs.push({
+                                                    dir: event.dir,
+                                                    trial: event.trial,
+                                                    variant: event.variant,
+                                                    status: "running",
+                                                    overall: 0,
+                                                    durationMs: 0,
+                                                    startedAt: new Date(event.timestamp).toISOString(),
+                                                    workerModel: event.workerModel || "",
+                                                    suite: event.suite,
+                                                    suiteRunId: event.suiteRunId,
+                                                });
+                                                this.sortRuns();
+                                            }
+                                            break;
+
+                                        case "run_progress":
+                                            if (this.selectedDir === event.dir) {
+                                                this._fetchLive(event.dir);
+                                            }
+                                            break;
+
+                                        case "run_completed": {
+                                            const run = this.runs.find((r) => r.dir === event.dir);
+                                            if (run) {
+                                                run.status = event.status;
+                                                if (event.overall != null) run.overall = event.overall;
+                                                run.durationMs = event.durationMs;
+                                            }
+                                            if (this.selectedDir === event.dir) {
+                                                this._fetchReport(event.dir);
+                                            }
+                                            break;
+                                        }
+                                    }
+                                },
+
+                                _autoSelectIfNeeded() {
+                                    if (this.selectedDir || this.selectedSuite) return;
+                                    if (this.runs.length === 0) return;
+                                    const runningRun = this.runs.find((r) => r.status === "running");
+                                    if (runningRun) {
+                                        this.selectRun(runningRun.dir);
+                                    } else {
+                                        const first = this.runList[0];
+                                        if (first?.type === "suite") {
+                                            this.selectSuite(first);
+                                        } else if (first?.run) {
+                                            this.selectRun(first.run.dir);
+                                        }
+                                    }
+                                },
+
+                                async _fetchReport(dir) {
+                                    try {
+                                        const resp = await fetch(`runs/${dir}/report.json`);
+                                        if (resp.ok) {
+                                            this.report = await resp.json();
+                                            this.reportLoading = false;
+                                        }
+                                    } catch {}
+                                },
+
+                                // -- File polling fallback ------------------------------------
+
+                                async _initFilePolling() {
+                                    try {
+                                        const resp = await fetch("runs/index.json");
+                                        if (!resp.ok) {
+                                            if (resp.status === 404) {
+                                                this.runs = [];
+                                                this.error = null;
+                                            } else {
+                                                throw new Error(
+                                                    `Failed to load runs: ${resp.status}`,
+                                                );
+                                            }
+                                        } else {
+                                            this.runs = await resp.json();
+                                            this.sortRuns();
+                                            this._autoSelectIfNeeded();
+                                        }
+                                        this._startIndexPolling();
+                                    } catch (e) {
+                                        this.error =
+                                            e.message || "Failed to load run index.";
+                                    } finally {
+                                        this.loading = false;
+                                    }
+                                },
+
+                                _startIndexPolling() {
+                                    if (this._indexInterval)
+                                        clearInterval(this._indexInterval);
+                                    this._indexInterval = setInterval(async () => {
+                                        try {
+                                            const resp = await fetch("runs/index.json");
+                                            if (resp.ok) {
+                                                this.runs = await resp.json();
+                                                this.sortRuns();
+                                            }
+                                            // Detect crashed/stale runs
+                                            for (const run of this.runs) {
+                                                if (run.status !== "running") continue;
+                                                try {
+                                                    const r = await fetch(`runs/${run.dir}/report.json`);
+                                                    if (r.ok) {
+                                                        const report = await r.json();
+                                                        run.status = report.meta?.status || "completed";
+                                                        run.overall = report.scores?.overall || 0;
+                                                        continue;
+                                                    }
+                                                } catch {}
+                                                try {
+                                                    const lr = await fetch(`runs/${run.dir}/live.json`);
+                                                    if (lr.ok) {
+                                                        const live = await lr.json();
+                                                        const elapsed =
+                                                            Date.now() -
+                                                            new Date(live.meta?.startedAt || run.startedAt).getTime() -
+                                                            (live.meta?.durationMs || 0);
+                                                        if (elapsed > 120000) run.status = "crashed";
+                                                    } else {
+                                                        const started = new Date(run.startedAt).getTime();
+                                                        if (Date.now() - started > 120000) run.status = "crashed";
+                                                    }
+                                                } catch {}
+                                            }
+                                        } catch {}
+                                    }, 5000);
+                                },
+
+                                async selectSuite(suiteItem) {
+                                    this.selectedDir = null;
+                                    this.selectedSuite = suiteItem;
+                                    this.report = null;
+                                    this.reportLoading = true;
+                                    this.reportError = null;
+                                    this.suiteReports = {};
+                                    this.suiteReportData = null;
+                                    if (this._liveInterval) {
+                                        clearInterval(this._liveInterval);
+                                        this._liveInterval = null;
+                                    }
+                                    try {
+                                        const fetches = suiteItem.children.map(async (run) => {
+                                            if (run.status === "running") return;
+                                            try {
+                                                const resp = await fetch(`runs/${run.dir}/report.json`);
+                                                if (resp.ok) {
+                                                    this.suiteReports[run.dir] = await resp.json();
+                                                }
+                                            } catch {}
+                                        });
+                                        await Promise.all(fetches);
+
+                                        // Fetch suite-level report for aggregated data
+                                        try {
+                                            const suiteReportResp = await fetch(`runs/suites/${suiteItem.suiteRunId}-${suiteItem.suite}/report.json`);
+                                            if (suiteReportResp.ok) {
+                                                this.suiteReportData = await suiteReportResp.json();
+                                            }
+                                        } catch {}
+                                    } finally {
+                                        this.reportLoading = false;
+                                    }
+                                },
+
+                                async selectRun(dir) {
+                                    if (this.selectedDir === dir && this.report) return;
+                                    this.selectedSuite = null;
+                                    this.selectedDir = dir;
+                                    this.report = null;
+                                    this.reportLoading = true;
+                                    this.reportError = null;
+                                    if (this._liveInterval) {
+                                        clearInterval(this._liveInterval);
+                                        this._liveInterval = null;
+                                    }
+
+                                    const run = this.runs.find((r) => r.dir === dir);
+                                    const isLive = run?.status === "running";
+
+                                    try {
+                                        if (isLive) {
+                                            await this._fetchLive(dir);
+                                            // Only poll in file-polling mode; SSE handles updates via run_progress
+                                            if (!this._sseConnected) {
+                                                this._liveInterval = setInterval(
+                                                    () => this._pollLive(dir),
+                                                    2000,
+                                                );
+                                            }
+                                        } else {
+                                            await this._fetchReport(dir);
+                                            if (!this.report) {
+                                                throw new Error("Failed to load report");
+                                            }
+                                        }
+                                    } catch (e) {
+                                        this.reportError =
+                                            e.message || "Failed to load report.";
+                                    } finally {
+                                        this.reportLoading = false;
+                                    }
+                                },
+
+                                async _fetchLive(dir) {
+                                    const resp = await fetch(`runs/${dir}/live.json`);
+                                    if (resp.ok) {
+                                        this.report = await resp.json();
+                                    }
+                                },
+
+                                async _pollLive(dir) {
+                                    if (this.selectedDir !== dir) {
+                                        clearInterval(this._liveInterval);
+                                        this._liveInterval = null;
+                                        return;
+                                    }
+                                    // Check if run completed
+                                    try {
+                                        const reportResp = await fetch(
+                                            `runs/${dir}/report.json`,
+                                        );
+                                        if (reportResp.ok) {
+                                            this.report = await reportResp.json();
+                                            clearInterval(this._liveInterval);
+                                            this._liveInterval = null;
+                                            // Update run status in sidebar
+                                            const run = this.runs.find(
+                                                (r) => r.dir === dir,
+                                            );
+                                            if (run) {
+                                                run.status =
+                                                    this.report.meta?.status || "completed";
+                                                run.overall =
+                                                    this.report.scores?.overall || 0;
+                                            }
+                                            this._startIndexPolling();
+                                            this._scrollTimeline();
+                                            return;
+                                        }
+                                    } catch {}
+                                    // Still running — fetch live.json
+                                    await this._fetchLive(dir);
+                                    this._scrollTimeline();
+                                },
+
+                                _scrollTimeline() {
+                                    const list = document.querySelector(".log-list");
+                                    if (list) list.scrollTop = list.scrollHeight;
+                                },
+
+                                // Computed-style getter for score rows
+                                get suiteScoreCategories() {
+                                    const cats = new Set();
+                                    for (const report of Object.values(this.suiteReports)) {
+                                        if (report?.scores?.deterministic) {
+                                            for (const k of Object.keys(report.scores.deterministic)) cats.add(k);
+                                        }
+                                        if (report?.scores?.judge) {
+                                            for (const k of Object.keys(report.scores.judge)) cats.add(k);
+                                        }
+                                    }
+                                    return Array.from(cats);
+                                },
+
+                                get scoreRows() {
+                                    if (!this.report?.scores) return [];
+                                    const scores = this.report.scores;
+                                    const rows = [];
+
+                                    // Handle both nested format (deterministic + judge) and flat format
+                                    if (scores.deterministic) {
+                                        for (const [key, val] of Object.entries(
+                                            scores.deterministic,
+                                        )) {
+                                            rows.push({
+                                                label: this.formatScoreKey(key),
+                                                value: val,
+                                                isOverall: false,
+                                            });
+                                        }
+                                    }
+                                    if (scores.judge) {
+                                        for (const [key, val] of Object.entries(
+                                            scores.judge,
+                                        )) {
+                                            rows.push({
+                                                label: this.formatScoreKey(key),
+                                                value: val,
+                                                isOverall: false,
+                                            });
+                                        }
+                                    }
+
+                                    // Flat format — add all keys except "overall"
+                                    if (!scores.deterministic && !scores.judge) {
+                                        for (const [key, val] of Object.entries(scores)) {
+                                            if (key === "overall") continue;
+                                            rows.push({
+                                                label: this.formatScoreKey(key),
+                                                value: val,
+                                                isOverall: false,
+                                            });
+                                        }
+                                    }
+
+                                    return rows;
+                                },
+
+                                get runList() {
+                                    const groups = new Map();
+                                    const items = [];
+
+                                    for (const run of this.runs) {
+                                        if (run.suite && run.suiteRunId) {
+                                            if (!groups.has(run.suiteRunId)) {
+                                                const group = {
+                                                    type: "suite",
+                                                    suiteRunId: run.suiteRunId,
+                                                    suite: run.suite,
+                                                    sortKey: 0,
+                                                    children: [],
+                                                };
+                                                groups.set(run.suiteRunId, group);
+                                                items.push(group);
+                                            }
+                                            const group = groups.get(run.suiteRunId);
+                                            group.children.push(run);
+                                            group.sortKey = Math.max(
+                                                group.sortKey,
+                                                this.runSortKey(run),
+                                            );
+                                        } else {
+                                            items.push({
+                                                type: "standalone",
+                                                sortKey: this.runSortKey(run),
+                                                run,
+                                            });
+                                        }
+                                    }
+
+                                    for (const item of items) {
+                                        if (item.type !== "suite") continue;
+                                        item.children.sort(
+                                            (a, b) =>
+                                                this.runSortKey(b) -
+                                                this.runSortKey(a),
+                                        );
+                                        const scores = item.children
+                                            .map((r) => r.overall)
+                                            .filter(
+                                                (s) =>
+                                                    Number.isFinite(s) && s > 0,
+                                            );
+                                        item.averageOverall =
+                                            scores.length > 0
+                                                ? Math.round(
+                                                      scores.reduce(
+                                                          (sum, s) => sum + s,
+                                                          0,
+                                                      ) / scores.length,
+                                                  )
+                                                : null;
+                                        item.durationMs = item.children.reduce(
+                                            (sum, r) =>
+                                                sum + (r.durationMs || 0),
+                                            0,
+                                        );
+                                        item.finishedRuns =
+                                            item.children.filter(
+                                                (r) => r.status !== "running",
+                                            ).length;
+                                        item.totalRuns = item.children.length;
+                                        item.epochs = Math.max(1, ...item.children.map((r) => r.totalEpochs || 1));
+                                        item.status = this.suiteRunStatus(
+                                            item.children,
+                                        );
+                                    }
+
+                                    return items.sort(
+                                        (a, b) => b.sortKey - a.sortKey,
+                                    );
+                                },
+
+                                // Unified timeline
+                                timelineFilters: {
+                                    tool: true,
+                                    file: true,
+                                    plugin: true,
+                                    test: true,
+                                    phase: true,
+                                },
+
+                                get timeline() {
+                                    const s = this.report?.session;
+                                    if (!s) return [];
+                                    const events = [];
+                                    for (const tc of s.toolCalls || []) {
+                                        events.push({
+                                            kind: "tool",
+                                            timestamp: tc.timestamp,
+                                            data: tc,
+                                        });
+                                    }
+                                    for (const fw of s.fileWrites || []) {
+                                        events.push({
+                                            kind: "file",
+                                            timestamp: fw.timestamp,
+                                            data: fw,
+                                        });
+                                    }
+                                    for (const ev of s.pluginEvents || []) {
+                                        events.push({
+                                            kind: "plugin",
+                                            timestamp: ev.timestamp,
+                                            data: ev,
+                                        });
+                                    }
+                                    for (const tr of s.testRuns || []) {
+                                        events.push({
+                                            kind: "test",
+                                            timestamp: tr.timestamp,
+                                            data: tr,
+                                        });
+                                    }
+                                    for (const pc of s.phaseChanges || []) {
+                                        events.push({
+                                            kind: "phase",
+                                            timestamp: pc.timestamp,
+                                            data: pc,
+                                        });
+                                    }
+                                    events.sort((a, b) => a.timestamp - b.timestamp);
+                                    return events;
+                                },
+
+                                get filteredTimeline() {
+                                    return this.timeline.filter(
+                                        (e) => this.timelineFilters[e.kind],
+                                    );
+                                },
+
+                                get timelineKinds() {
+                                    const counts = {};
+                                    for (const e of this.timeline) {
+                                        counts[e.kind] = (counts[e.kind] || 0) + 1;
+                                    }
+                                    return [
+                                        {
+                                            key: "tool",
+                                            label: "Tool Calls",
+                                            count: counts.tool || 0,
+                                        },
+                                        {
+                                            key: "file",
+                                            label: "File Writes",
+                                            count: counts.file || 0,
+                                        },
+                                        {
+                                            key: "plugin",
+                                            label: "Plugin Events",
+                                            count: counts.plugin || 0,
+                                        },
+                                        {
+                                            key: "test",
+                                            label: "Test Runs",
+                                            count: counts.test || 0,
+                                        },
+                                        {
+                                            key: "phase",
+                                            label: "Phase Changes",
+                                            count: counts.phase || 0,
+                                        },
+                                    ].filter((k) => k.count > 0);
+                                },
+
+                                get allFindings() {
+                                    const top = this.report?.findings || [];
+                                    const judge = this.report?.judgeResult?.findings || [];
+                                    const seen = new Set(top);
+                                    const merged = [...top];
+                                    for (const f of judge) {
+                                        if (!seen.has(f)) merged.push(f);
+                                    }
+                                    return merged;
+                                },
+
+                                get judgeReasonEntries() {
+                                    const reasons = this.report?.judgeResult?.reasons;
+                                    if (!reasons) return [];
+                                    return Object.entries(reasons);
+                                },
+
+                                // Helpers
+                                scoreColor(score) {
+                                    if (score == null) return "var(--foreground-subtle)";
+                                    if (score > 80) return "var(--score-green)";
+                                    if (score > 50) return "var(--score-yellow)";
+                                    return "var(--score-red)";
+                                },
+
+                                formatScoreKey(key) {
+                                    // tddCompliance -> TDD Compliance, test_quality -> Test Quality
+                                    return key
+                                        .replace(/([a-z])([A-Z])/g, "$1 $2")
+                                        .replace(/_/g, " ")
+                                        .replace(/\b\w/g, (c) => c.toUpperCase())
+                                        .replace(/\bTdd\b/, "TDD")
+                                        .replace(/\bPrd\b/, "PRD");
+                                },
+
+                                formatDuration(ms) {
+                                    if (!ms) return "--";
+                                    if (ms < 1000) return ms + "ms";
+                                    const s = Math.round(ms / 1000);
+                                    if (s < 60) return s + "s";
+                                    const m = Math.floor(s / 60);
+                                    const rem = s % 60;
+                                    return m + "m " + rem + "s";
+                                },
+
+                                formatDate(iso) {
+                                    if (!iso) return "--";
+                                    const d = new Date(iso);
+                                    if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) {
+                                        return "--";
+                                    }
+                                    return d.toLocaleDateString(undefined, {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    });
+                                },
+
+                                formatDateTime(iso) {
+                                    if (!iso) return "--";
+                                    const d = new Date(iso);
+                                    if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) {
+                                        return "--";
+                                    }
+                                    return d.toLocaleString(undefined, {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    });
+                                },
+
+                                formatSuiteRunLabel(suiteRunId) {
+                                    const d = this.parseStampedId(suiteRunId);
+                                    if (!d) return suiteRunId;
+                                    return d.toLocaleString(undefined, {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    });
+                                },
+
+                                suiteRunMeta(suiteRun) {
+                                    if (suiteRun.status === "running") {
+                                        return (
+                                            suiteRun.finishedRuns +
+                                            "/" +
+                                            suiteRun.totalRuns +
+                                            " finished"
+                                        );
+                                    }
+                                    return (
+                                        suiteRun.totalRuns +
+                                        " run" +
+                                        (suiteRun.totalRuns !== 1 ? "s" : "")
+                                    );
+                                },
+
+                                formatEpochLabel(run) {
+                                    if (!run?.epoch || !run?.totalEpochs || run.totalEpochs <= 1) {
+                                        return "";
+                                    }
+                                    return "e" + run.epoch + "/" + run.totalEpochs;
+                                },
+
+                                formatRunLabel(run) {
+                                    const base = run.trial + "/" + run.variant;
+                                    const epoch = this.formatEpochLabel(run);
+                                    return epoch ? base + " [" + epoch + "]" : base;
+                                },
+
+                                formatRunColumnLabel(run) {
+                                    const epoch = this.formatEpochLabel(run);
+                                    return epoch ? run.trial + " " + epoch : run.trial;
+                                },
+
+                                formatTimestamp(ts) {
+                                    if (!ts) return "--";
+                                    const d = new Date(ts);
+                                    return d.toLocaleTimeString(undefined, {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit",
+                                    });
+                                },
+
+                                formatArgs(args) {
+                                    if (!args) return "";
+                                    if (typeof args === "string") return args;
+                                    // For bash commands, show the command directly
+                                    if (args.command) return args.command;
+                                    // For file operations, show the path
+                                    if (args.path) return args.path;
+                                    return JSON.stringify(args);
+                                },
+
+                                truncate(str, len) {
+                                    if (!str) return "";
+                                    if (str.length <= len) return str;
+                                    return str.slice(0, len) + "...";
+                                },
+
+                                formatNumber(n) {
+                                    if (n == null) return "0";
+                                    return n.toLocaleString();
+                                },
+
+                                parseStampedId(value) {
+                                    if (!value) return null;
+                                    const match = value.match(
+                                        /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/,
+                                    );
+                                    if (!match) return null;
+                                    const [, year, month, day, hour, minute, second, ms] =
+                                        match;
+                                    return new Date(
+                                        Date.UTC(
+                                            Number(year),
+                                            Number(month) - 1,
+                                            Number(day),
+                                            Number(hour),
+                                            Number(minute),
+                                            Number(second),
+                                            Number(ms),
+                                        ),
+                                    );
+                                },
+
+                                runSortKey(run) {
+                                    const startedAt = run?.startedAt
+                                        ? new Date(run.startedAt).getTime()
+                                        : 0;
+                                    if (Number.isFinite(startedAt) && startedAt > 0) {
+                                        return startedAt;
+                                    }
+                                    return this.suiteRunSortKey(run?.suiteRunId || run?.dir);
+                                },
+
+                                suiteRunSortKey(value) {
+                                    const stamped = this.parseStampedId(value);
+                                    if (stamped) return stamped.getTime();
+                                    return 0;
+                                },
+
+                                suiteRunStatus(children) {
+                                    if (children.some((run) => run.status === "running")) {
+                                        return "running";
+                                    }
+                                    if (children.some((run) => run.status === "crashed")) {
+                                        return "crashed";
+                                    }
+                                    if (children.some((run) => run.status === "stalled")) {
+                                        return "stalled";
+                                    }
+                                    if (children.some((run) => run.status === "timeout")) {
+                                        return "timeout";
+                                    }
+                                    return "completed";
+                                },
+
+                                sortRuns() {
+                                    this.runs.sort(
+                                        (a, b) =>
+                                            this.runSortKey(b) -
+                                            this.runSortKey(a),
+                                    );
+                                },
+                            };
                         }
-
-                        for (const item of items) {
-                            if (item.type !== "suite") continue;
-                            item.children.sort(
-                                (a, b) =>
-                                    this.runSortKey(b) -
-                                    this.runSortKey(a),
-                            );
-                            const scores = item.children
-                                .map((r) => r.overall)
-                                .filter(
-                                    (s) =>
-                                        Number.isFinite(s) && s > 0,
-                                );
-                            item.averageOverall =
-                                scores.length > 0
-                                    ? Math.round(
-                                          scores.reduce(
-                                              (sum, s) => sum + s,
-                                              0,
-                                          ) / scores.length,
-                                      )
-                                    : null;
-                            item.durationMs = item.children.reduce(
-                                (sum, r) =>
-                                    sum + (r.durationMs || 0),
-                                0,
-                            );
-                            item.finishedRuns =
-                                item.children.filter(
-                                    (r) => r.status !== "running",
-                                ).length;
-                            item.totalRuns = item.children.length;
-                            item.status = this.suiteRunStatus(
-                                item.children,
-                            );
-                        }
-
-                        return items.sort(
-                            (a, b) => b.sortKey - a.sortKey,
-                        );
-                    },
-
-                    // Unified timeline
-                    timelineFilters: {
-                        tool: true,
-                        file: true,
-                        plugin: true,
-                        test: true,
-                        phase: true,
-                    },
-
-                    get timeline() {
-                        const s = this.report?.session;
-                        if (!s) return [];
-                        const events = [];
-                        for (const tc of s.toolCalls || []) {
-                            events.push({
-                                kind: "tool",
-                                timestamp: tc.timestamp,
-                                data: tc,
-                            });
-                        }
-                        for (const fw of s.fileWrites || []) {
-                            events.push({
-                                kind: "file",
-                                timestamp: fw.timestamp,
-                                data: fw,
-                            });
-                        }
-                        for (const ev of s.pluginEvents || []) {
-                            events.push({
-                                kind: "plugin",
-                                timestamp: ev.timestamp,
-                                data: ev,
-                            });
-                        }
-                        for (const tr of s.testRuns || []) {
-                            events.push({
-                                kind: "test",
-                                timestamp: tr.timestamp,
-                                data: tr,
-                            });
-                        }
-                        for (const pc of s.phaseChanges || []) {
-                            events.push({
-                                kind: "phase",
-                                timestamp: pc.timestamp,
-                                data: pc,
-                            });
-                        }
-                        events.sort((a, b) => a.timestamp - b.timestamp);
-                        return events;
-                    },
-
-                    get filteredTimeline() {
-                        return this.timeline.filter(
-                            (e) => this.timelineFilters[e.kind],
-                        );
-                    },
-
-                    get timelineKinds() {
-                        const counts = {};
-                        for (const e of this.timeline) {
-                            counts[e.kind] = (counts[e.kind] || 0) + 1;
-                        }
-                        return [
-                            {
-                                key: "tool",
-                                label: "Tool Calls",
-                                count: counts.tool || 0,
-                            },
-                            {
-                                key: "file",
-                                label: "File Writes",
-                                count: counts.file || 0,
-                            },
-                            {
-                                key: "plugin",
-                                label: "Plugin Events",
-                                count: counts.plugin || 0,
-                            },
-                            {
-                                key: "test",
-                                label: "Test Runs",
-                                count: counts.test || 0,
-                            },
-                            {
-                                key: "phase",
-                                label: "Phase Changes",
-                                count: counts.phase || 0,
-                            },
-                        ].filter((k) => k.count > 0);
-                    },
-
-                    get allFindings() {
-                        const top = this.report?.findings || [];
-                        const judge = this.report?.judgeResult?.findings || [];
-                        const seen = new Set(top);
-                        const merged = [...top];
-                        for (const f of judge) {
-                            if (!seen.has(f)) merged.push(f);
-                        }
-                        return merged;
-                    },
-
-                    get judgeReasonEntries() {
-                        const reasons = this.report?.judgeResult?.reasons;
-                        if (!reasons) return [];
-                        return Object.entries(reasons);
-                    },
-
-                    // Helpers
-                    scoreColor(score) {
-                        if (score == null) return "var(--foreground-subtle)";
-                        if (score > 80) return "var(--score-green)";
-                        if (score > 50) return "var(--score-yellow)";
-                        return "var(--score-red)";
-                    },
-
-                    formatScoreKey(key) {
-                        // tddCompliance -> TDD Compliance, test_quality -> Test Quality
-                        return key
-                            .replace(/([a-z])([A-Z])/g, "$1 $2")
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase())
-                            .replace(/\bTdd\b/, "TDD")
-                            .replace(/\bPrd\b/, "PRD");
-                    },
-
-                    formatDuration(ms) {
-                        if (!ms) return "--";
-                        if (ms < 1000) return ms + "ms";
-                        const s = Math.round(ms / 1000);
-                        if (s < 60) return s + "s";
-                        const m = Math.floor(s / 60);
-                        const rem = s % 60;
-                        return m + "m " + rem + "s";
-                    },
-
-                    formatDate(iso) {
-                        if (!iso) return "--";
-                        const d = new Date(iso);
-                        if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) {
-                            return "--";
-                        }
-                        return d.toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        });
-                    },
-
-                    formatDateTime(iso) {
-                        if (!iso) return "--";
-                        const d = new Date(iso);
-                        if (!Number.isFinite(d.getTime()) || d.getTime() <= 0) {
-                            return "--";
-                        }
-                        return d.toLocaleString(undefined, {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                        });
-                    },
-
-                    formatSuiteRunLabel(suiteRunId) {
-                        const d = this.parseStampedId(suiteRunId);
-                        if (!d) return suiteRunId;
-                        return d.toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        });
-                    },
-
-                    suiteRunMeta(suiteRun) {
-                        if (suiteRun.status === "running") {
-                            return (
-                                suiteRun.finishedRuns +
-                                "/" +
-                                suiteRun.totalRuns +
-                                " finished"
-                            );
-                        }
-                        return (
-                            suiteRun.totalRuns +
-                            " run" +
-                            (suiteRun.totalRuns !== 1 ? "s" : "")
-                        );
-                    },
-
-                    formatTimestamp(ts) {
-                        if (!ts) return "--";
-                        const d = new Date(ts);
-                        return d.toLocaleTimeString(undefined, {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                        });
-                    },
-
-                    formatArgs(args) {
-                        if (!args) return "";
-                        if (typeof args === "string") return args;
-                        // For bash commands, show the command directly
-                        if (args.command) return args.command;
-                        // For file operations, show the path
-                        if (args.path) return args.path;
-                        return JSON.stringify(args);
-                    },
-
-                    truncate(str, len) {
-                        if (!str) return "";
-                        if (str.length <= len) return str;
-                        return str.slice(0, len) + "...";
-                    },
-
-                    formatNumber(n) {
-                        if (n == null) return "0";
-                        return n.toLocaleString();
-                    },
-
-                    parseStampedId(value) {
-                        if (!value) return null;
-                        const match = value.match(
-                            /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/,
-                        );
-                        if (!match) return null;
-                        const [, year, month, day, hour, minute, second, ms] =
-                            match;
-                        return new Date(
-                            Date.UTC(
-                                Number(year),
-                                Number(month) - 1,
-                                Number(day),
-                                Number(hour),
-                                Number(minute),
-                                Number(second),
-                                Number(ms),
-                            ),
-                        );
-                    },
-
-                    runSortKey(run) {
-                        const startedAt = run?.startedAt
-                            ? new Date(run.startedAt).getTime()
-                            : 0;
-                        if (Number.isFinite(startedAt) && startedAt > 0) {
-                            return startedAt;
-                        }
-                        return this.suiteRunSortKey(run?.suiteRunId || run?.dir);
-                    },
-
-                    suiteRunSortKey(value) {
-                        const stamped = this.parseStampedId(value);
-                        if (stamped) return stamped.getTime();
-                        return 0;
-                    },
-
-                    suiteRunStatus(children) {
-                        if (children.some((run) => run.status === "running")) {
-                            return "running";
-                        }
-                        if (children.some((run) => run.status === "crashed")) {
-                            return "crashed";
-                        }
-                        if (children.some((run) => run.status === "stalled")) {
-                            return "stalled";
-                        }
-                        if (children.some((run) => run.status === "timeout")) {
-                            return "timeout";
-                        }
-                        return "completed";
-                    },
-
-                    sortRuns() {
-                        this.runs.sort(
-                            (a, b) =>
-                                this.runSortKey(b) -
-                                this.runSortKey(a),
-                        );
-                    },
-                };
-            }
         </script>
     </body>
 </html>

@@ -93,6 +93,8 @@ export interface EvalMeta {
   status: EvalRunStatus;
   suite?: string;
   suiteRunId?: string;
+  epoch?: number;
+  totalEpochs?: number;
 }
 
 export interface EvalReport {
@@ -100,6 +102,34 @@ export interface EvalReport {
   scores: EvalScores;
   judgeResult?: JudgeResult;
   session: EvalSession;
+  findings: string[];
+}
+
+// -- Epoch statistics ----------------------------------------------------------
+
+export type RegressionSeverity = "hard" | "significant" | "drift";
+
+export interface EpochStats {
+  mean: number;
+  stderr: number;
+  min: number;
+  max: number;
+  n: number;
+  values: number[];
+}
+
+export type StatusCounts = Partial<Record<EvalRunStatus, number>>;
+
+export interface AggregatedSuiteEntry {
+  trial: string;
+  variant: string;
+  epochs: number;
+  runDirs: string[];
+  overall: EpochStats;
+  deterministic: Record<string, EpochStats>;
+  judge?: Record<string, EpochStats>;
+  statusCounts: StatusCounts;
+  verifyPassCount: number;
   findings: string[];
 }
 
@@ -123,6 +153,7 @@ export interface SuiteReportSummary {
   verifyFailureCount: number;
   hardFailureCount: number;
   averageOverall: number;
+  epochs?: number;
 }
 
 export interface SuiteReport {
@@ -132,6 +163,9 @@ export interface SuiteReport {
   completedAt: string;
   entries: SuiteReportEntry[];
   summary: SuiteReportSummary;
+  epochs?: number;
+  aggregated?: AggregatedSuiteEntry[];
+  comparison?: SuiteComparison;
 }
 
 export interface SuiteIndexEntry {
@@ -143,6 +177,7 @@ export interface SuiteIndexEntry {
   totalRuns: number;
   hardFailureCount: number;
   averageOverall: number;
+  epochs?: number;
 }
 
 export interface SuiteComparisonOptions {
@@ -154,8 +189,11 @@ export interface SuiteComparisonEntry {
   variant: string;
   current?: SuiteReportEntry;
   baseline?: SuiteReportEntry;
+  currentAggregated?: AggregatedSuiteEntry;
+  baselineAggregated?: AggregatedSuiteEntry;
   deltaOverall?: number;
   regression: boolean;
+  severity?: RegressionSeverity;
   findings: string[];
 }
 
@@ -170,6 +208,9 @@ export interface SuiteComparison {
   entries: SuiteComparisonEntry[];
   findings: string[];
   hasRegression: boolean;
+  hardRegressionCount: number;
+  significantRegressionCount: number;
+  driftCount: number;
 }
 
 // -- Run Index ----------------------------------------------------------------
@@ -186,6 +227,8 @@ export interface RunIndexEntry {
   judgeModel?: string;
   suite?: string;
   suiteRunId?: string;
+  epoch?: number;
+  totalEpochs?: number;
 }
 
 // -- SSE Events ---------------------------------------------------------------
@@ -215,12 +258,32 @@ export type EvalEvent =
       type: "run_completed";
       dir: string;
       status: EvalRunStatus;
-      overall: number;
+      overall?: number;
       durationMs: number;
     })
   | (EvalEventBase & {
       type: "index_updated";
       runs: RunIndexEntry[];
+    })
+  | (EvalEventBase & {
+      type: "epoch_progress";
+      suite: string;
+      suiteRunId: string;
+      trial: string;
+      variant: string;
+      epoch: number;
+      totalEpochs: number;
+    })
+  | (EvalEventBase & {
+      type: "suite_regression";
+      suite: string;
+      suiteRunId: string;
+      baselineSuiteRunId: string;
+      hasRegression: boolean;
+      hardCount: number;
+      significantCount: number;
+      driftCount: number;
+      findings: string[];
     });
 
 // -- Sandbox ------------------------------------------------------------------
