@@ -44,10 +44,17 @@ export interface VerifyResult {
 
 // -- Plugin interface ----------------------------------------------------------
 
+export interface JudgeScoreConfig {
+  includeInOverall?: boolean;
+  defaultWeight?: number;
+  weights?: Record<string, number>;
+}
+
 export interface PluginScoreResult {
   scores: Record<string, number>;
   weights: Record<string, number>;
   findings: string[];
+  judge?: JudgeScoreConfig;
 }
 
 export interface EvalPlugin {
@@ -79,6 +86,7 @@ export interface EvalScores {
   deterministic: Record<string, number>;
   judge?: Record<string, number>;
   overall: number;
+  issues: string[];
 }
 
 export type EvalRunStatus = "completed" | "timeout" | "crashed" | "stalled";
@@ -107,7 +115,7 @@ export interface EvalReport {
 
 // -- Epoch statistics ----------------------------------------------------------
 
-export type RegressionSeverity = "hard" | "significant" | "drift";
+export type RegressionSeverity = "hard" | "clear" | "drift";
 
 export interface EpochStats {
   mean: number;
@@ -209,7 +217,7 @@ export interface SuiteComparison {
   findings: string[];
   hasRegression: boolean;
   hardRegressionCount: number;
-  significantRegressionCount: number;
+  clearRegressionCount: number;
   driftCount: number;
 }
 
@@ -281,7 +289,7 @@ export type EvalEvent =
       baselineSuiteRunId: string;
       hasRegression: boolean;
       hardCount: number;
-      significantCount: number;
+      clearCount: number;
       driftCount: number;
       findings: string[];
     });

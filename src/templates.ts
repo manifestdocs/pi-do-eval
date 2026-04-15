@@ -128,7 +128,7 @@ const config: EvalConfig = {
     inactivityMs: 2 * 60 * 1000,
     judgeMs: 2 * 60 * 1000,
   },
-  // epochs: 3,  // Run each trial N times for statistical significance
+  // epochs: 3,  // Run each trial N times to measure stability on the same task
   suites: {
     small,
     quick: small,
@@ -320,6 +320,7 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
   const scores = scoreSession({ session, verify, plugin, judgeResult });
 
   const findings: string[] = [];
+  findings.push(...scores.issues);
   const pluginResult = plugin.scoreSession(session, verify);
   findings.push(...pluginResult.findings);
   if (!verify.passed) findings.push("Verification failed");

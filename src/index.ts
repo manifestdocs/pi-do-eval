@@ -37,6 +37,7 @@ export type {
   EvalSession,
   FileWriteRecord,
   JudgeFailureReason,
+  JudgeScoreConfig,
   JudgeOutcome,
   JudgeResult,
   PluginEvent,
