@@ -179,6 +179,7 @@ export interface SuiteReportSummary {
 export interface SuiteReport {
   suite: string;
   suiteRunId: string;
+  workerModel?: string;
   startedAt: string;
   completedAt: string;
   entries: SuiteReportEntry[];
@@ -191,6 +192,7 @@ export interface SuiteReport {
 export interface SuiteIndexEntry {
   suite: string;
   suiteRunId: string;
+  workerModel?: string;
   dir: string;
   startedAt: string;
   completedAt: string;
@@ -305,6 +307,35 @@ export type EvalEvent =
       driftCount: number;
       findings: string[];
     });
+
+// -- Bench (cross-model comparison) -------------------------------------------
+
+export interface BenchEntry {
+  trial: string;
+  variant: string;
+  overall: Record<string, number>;
+  deterministic: Record<string, Record<string, number>>;
+}
+
+export interface BenchReport {
+  suite: string;
+  benchRunId: string;
+  startedAt: string;
+  completedAt: string;
+  models: string[];
+  suiteRunIds: Record<string, string>;
+  entries: BenchEntry[];
+  averages: Record<string, number>;
+}
+
+export interface BenchIndexEntry {
+  suite: string;
+  benchRunId: string;
+  dir: string;
+  completedAt: string;
+  models: string[];
+  averages: Record<string, number>;
+}
 
 // -- Sandbox ------------------------------------------------------------------
 

@@ -106,6 +106,7 @@ export interface BudgetConfig {
 export interface EvalConfig {
   worker?: ModelConfig;
   judge?: ModelConfig;
+  models?: ModelConfig[];
   timeouts?: {
     workerMs?: number;
     inactivityMs?: number;
@@ -134,6 +135,10 @@ const config: EvalConfig = {
   judge: {
     // Provider/model for the LLM judge
   },
+  // models: [
+  //   { provider: "anthropic", model: "claude-sonnet-4-5" },
+  //   { provider: "openai", model: "gpt-4o" },
+  // ],
   timeouts: {
     workerMs: 15 * 60 * 1000,
     inactivityMs: 2 * 60 * 1000,
@@ -164,21 +169,28 @@ export function evalScript(): string {
 import * as path from "node:path";
 import {
   compareSuiteReports,
+  createBenchReport,
   createSuiteReport,
   defaultVerify,
   type EvalPlugin,
   type EvalReport,
   type JudgeResult,
+  listSuiteModels,
+  loadLatestSuiteReport,
   loadPreviousSuiteReport,
   parseSessionLines,
   printAggregatedSummary,
+  printBenchComparison,
   printSuiteComparison,
   printSummary,
   runEval,
   runJudge,
   scoreSession,
+  type SuiteReport,
   updateRunIndex,
   updateSuiteIndex,
+  updateBenchIndex,
+  writeBenchReport,
   writeReport,
   writeSuiteReport,
 } from "pi-do-eval";
@@ -385,6 +397,15 @@ function getFlag(name: string): string | undefined {
   return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
 }
 
+function getAllFlags(name: string): string[] {
+  const out: string[] = [];
+  const flag = \`--\${name}\`;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag && i + 1 < args.length) out.push(args[++i]!);
+  }
+  return out;
+}
+
 function hasFlag(name: string): boolean {
   return args.includes(\`--\${name}\`);
 }
@@ -395,10 +416,17 @@ const configuredSuites = {
   ...(evalConfig.suites ?? {}),
 };
 
-function buildRunOpts(): RunTrialOpts {
+function buildRunOpts(workerOverride?: ModelConfig): RunTrialOpts {
+  const worker: ModelConfig = { ...evalConfig.worker, ...workerOverride };
+  if (!workerOverride) {
+    const modelFlag = getFlag("model");
+    const providerFlag = getFlag("provider");
+    if (modelFlag) worker.model = modelFlag;
+    if (providerFlag) worker.provider = providerFlag;
+  }
   return {
     noJudge: hasFlag("no-judge"),
-    worker: evalConfig.worker,
+    worker,
     judge: evalConfig.judge,
     timeouts: evalConfig.timeouts,
   };
@@ -453,14 +481,17 @@ if (command === "list") {
       }
     }
 
+    const suiteWorkerModel = allResults[0]?.report.meta.workerModel;
+
     let comparison;
-    const previous = loadPreviousSuiteReport(RUNS_DIR, setName, suiteRunId);
+    const previous = loadPreviousSuiteReport(RUNS_DIR, setName, suiteRunId, suiteWorkerModel);
 
     // Create and write suite report
     const suiteReport = createSuiteReport(
       setName, suiteRunId, allResults,
       new Date().toISOString(),
       maxEpochs > 1 ? maxEpochs : undefined,
+      suiteWorkerModel,
     );
 
     if (previous) {
@@ -476,7 +507,8 @@ if (command === "list") {
 
     // Print aggregated summaries when epochs > 1
     if (suiteReport.aggregated) {
-      console.log("\\n--- Aggregated Results ---");
+      const modelLabel = suiteWorkerModel ? \` [\${suiteWorkerModel}]\` : "";
+      console.log(\`\\n--- Aggregated Results\${modelLabel} ---\`);
       for (const agg of suiteReport.aggregated) {
         printAggregatedSummary(agg);
       }
@@ -484,7 +516,7 @@ if (command === "list") {
 
     // Compare with previous suite run
     if (comparison) {
-      printSuiteComparison(comparison);
+      printSuiteComparison(comparison, suiteWorkerModel);
       if (comparison.hasRegression) {
         process.exit(1);
       }
@@ -501,6 +533,97 @@ if (command === "list") {
       await runTrial(t, v, buildRunOpts());
     }
   }
+} else if (command === "bench") {
+  const suiteName = args[1] && !args[1].startsWith("--") ? args[1] : undefined;
+  if (!suiteName) {
+    console.error("Usage: eval bench <suite> [--model <model>...]");
+    process.exit(1);
+  }
+  const entries = configuredSuites[suiteName];
+  if (!entries) {
+    const available = Object.keys(configuredSuites).join(", ");
+    console.error(\`Unknown suite "\${suiteName}". Available: \${available}\`);
+    process.exit(1);
+  }
+
+  function parseModelFlag(value: string): ModelConfig {
+    const slashIdx = value.indexOf("/");
+    if (slashIdx > 0) return { provider: value.slice(0, slashIdx), model: value.slice(slashIdx + 1) };
+    return { model: value };
+  }
+
+  const cliModels = getAllFlags("model").map(parseModelFlag);
+  const modelsToRun = cliModels.length > 0 ? cliModels : (evalConfig.models ?? []);
+
+  const globalEpochs = evalConfig.epochs ?? 1;
+  const benchRunId = \`bench-\${Date.now()}\`;
+  const benchStartedAt = new Date().toISOString();
+  const suiteReportsMap = new Map<string, SuiteReport>();
+
+  // Run any models that were requested
+  for (let mi = 0; mi < modelsToRun.length; mi++) {
+    const m = modelsToRun[mi]!;
+    const modelLabel = m.provider ? \`\${m.provider}/\${m.model}\` : (m.model ?? "default");
+    console.log(\`\\n=== Benchmarking with \${modelLabel} ===\\n\`);
+
+    const suiteRunId = \`suite-\${Date.now()}-\${mi}\`;
+    const allResults: Array<{ report: EvalReport; runDir: string }> = [];
+    let maxEpochs = 1;
+
+    for (const entry of entries) {
+      const epochs = entry.epochs ?? globalEpochs;
+      if (epochs > maxEpochs) maxEpochs = epochs;
+      for (let e = 1; e <= epochs; e++) {
+        const result = await runTrial(entry.trial, entry.variant, {
+          ...buildRunOpts({ provider: m.provider, model: m.model }),
+          suite: suiteName,
+          suiteRunId,
+          ...(epochs > 1 ? { epoch: e, totalEpochs: epochs } : {}),
+        });
+        allResults.push(result);
+      }
+    }
+
+    const suiteWorkerModel = allResults[0]?.report.meta.workerModel ?? modelLabel;
+    const previous = loadPreviousSuiteReport(RUNS_DIR, suiteName, suiteRunId, suiteWorkerModel);
+
+    const suiteReport = createSuiteReport(
+      suiteName, suiteRunId, allResults,
+      new Date().toISOString(),
+      maxEpochs > 1 ? maxEpochs : undefined,
+      suiteWorkerModel,
+    );
+
+    if (previous) {
+      const comparison = compareSuiteReports(
+        suiteReport, previous,
+        { threshold: evalConfig.regressions?.threshold },
+      );
+      suiteReport.comparison = comparison;
+    }
+
+    writeSuiteReport(suiteReport, RUNS_DIR);
+    updateSuiteIndex(RUNS_DIR);
+    suiteReportsMap.set(suiteWorkerModel, suiteReport);
+  }
+
+  // Load latest suite reports for any models not just run (from prior runs)
+  for (const model of listSuiteModels(RUNS_DIR, suiteName)) {
+    if (suiteReportsMap.has(model)) continue;
+    const report = loadLatestSuiteReport(RUNS_DIR, suiteName, model);
+    if (report) suiteReportsMap.set(model, report);
+  }
+
+  if (suiteReportsMap.size === 0) {
+    console.error("No suite runs found. Run the suite first with: eval run <suite> --model <model>");
+    process.exit(1);
+  }
+
+  // Build and print cross-model comparison
+  const benchReport = createBenchReport(suiteName, benchRunId, suiteReportsMap, benchStartedAt);
+  printBenchComparison(benchReport);
+  writeBenchReport(benchReport, RUNS_DIR);
+  updateBenchIndex(RUNS_DIR);
 } else {
   console.log("Eval suite");
   console.log("");
@@ -509,9 +632,13 @@ if (command === "list") {
   console.log("  eval run <suite>                         Run a named suite from eval.config.ts");
   console.log("  eval run --trial <t> --variant <v>       Run a single trial/variant");
   console.log("  eval run-all                             Run all trials and variants");
+  console.log("  eval bench <suite>                       Compare latest runs per model");
+  console.log("  eval bench <suite> --model X --model Y   Run models then compare");
   console.log("");
   console.log("Options:");
   console.log("  --no-judge                  Skip LLM judge (deterministic only)");
+  console.log("  --model <model>             Override worker model (repeatable for bench)");
+  console.log("  --provider <provider>        Override worker provider");
 }
 `;
 }

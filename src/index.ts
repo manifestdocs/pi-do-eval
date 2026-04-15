@@ -1,3 +1,4 @@
+export { createBenchReport, printBenchComparison, updateBenchIndex, writeBenchReport } from "./bench.js";
 export { type JudgeOptions, runJudge } from "./judge.js";
 export { parseSessionLines } from "./parser.js";
 export {
@@ -18,6 +19,7 @@ export {
   compareSuiteReports,
   computeStats,
   createSuiteReport,
+  listSuiteModels,
   loadLatestSuiteReport,
   loadPreviousSuiteReport,
   loadSuiteReport,
@@ -27,6 +29,9 @@ export {
 } from "./suites.js";
 export type {
   AggregatedSuiteEntry,
+  BenchEntry,
+  BenchIndexEntry,
+  BenchReport,
   BudgetConfig,
   EpochStats,
   EvalEvent,
@@ -38,9 +43,9 @@ export type {
   EvalSession,
   FileWriteRecord,
   JudgeFailureReason,
-  JudgeScoreConfig,
   JudgeOutcome,
   JudgeResult,
+  JudgeScoreConfig,
   PluginEvent,
   PluginScoreResult,
   RegressionSeverity,
