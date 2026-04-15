@@ -219,9 +219,10 @@ export function printAggregatedSummary(entry: AggregatedSuiteEntry) {
   );
 }
 
-export function printSuiteComparison(comparison: SuiteComparison) {
+export function printSuiteComparison(comparison: SuiteComparison, workerModel?: string) {
+  const modelLabel = workerModel ? ` [${workerModel}]` : "";
   console.log(
-    `\nSuite: ${comparison.suite} (baseline: ${comparison.baselineSuiteRunId} -> current: ${comparison.currentSuiteRunId})\n`,
+    `\nSuite: ${comparison.suite}${modelLabel} (baseline: ${comparison.baselineSuiteRunId} -> current: ${comparison.currentSuiteRunId})\n`,
   );
 
   for (const entry of comparison.entries) {

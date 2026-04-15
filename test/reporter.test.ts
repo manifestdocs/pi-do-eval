@@ -64,9 +64,9 @@ function makeReport(overrides?: Partial<EvalReport> & { scores?: Partial<EvalRep
       issues: overrides?.scores?.issues ?? base.scores.issues,
       ...(judgeScores
         ? {
-          judge: {
-            ...judgeScores,
-          },
+            judge: {
+              ...judgeScores,
+            },
           }
         : {}),
     },

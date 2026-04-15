@@ -712,3 +712,155 @@ describe("compareSuiteReports with epochs", () => {
     expect(comparison.hasRegression).toBe(false);
   });
 });
+
+// -- Model-aware suite regression ------------------------------------------------
+
+describe("workerModel in suite reports", () => {
+  it("stores workerModel when provided", () => {
+    const suite = createSuiteReport(
+      "small",
+      "suite-400",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+    expect(suite.workerModel).toBe("openai/gpt-5.4");
+  });
+
+  it("omits workerModel when not provided", () => {
+    const suite = createSuiteReport(
+      "small",
+      "suite-401",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+    );
+    expect(suite.workerModel).toBeUndefined();
+  });
+
+  it("round-trips workerModel through suite index", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-idx-"));
+    tempDirs.push(runsDir);
+
+    const suite = createSuiteReport(
+      "small",
+      "suite-410",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+    writeSuiteReport(suite, runsDir);
+    updateSuiteIndex(runsDir);
+
+    const indexPath = path.join(runsDir, "suites", "index.json");
+    const index = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+    expect(index[0].workerModel).toBe("openai/gpt-5.4");
+  });
+
+  it("loadPreviousSuiteReport filters by workerModel", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-prev-"));
+    tempDirs.push(runsDir);
+
+    const suiteA = createSuiteReport(
+      "small",
+      "suite-501",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+    const suiteB = createSuiteReport(
+      "small",
+      "suite-502",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r2" }],
+      "2026-01-01T00:20:00Z",
+      undefined,
+      "anthropic/claude-sonnet",
+    );
+    const suiteC = createSuiteReport(
+      "small",
+      "suite-503",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r3" }],
+      "2026-01-01T00:30:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+
+    writeSuiteReport(suiteA, runsDir);
+    writeSuiteReport(suiteB, runsDir);
+    writeSuiteReport(suiteC, runsDir);
+    updateSuiteIndex(runsDir);
+
+    // Without model filter: gets suite-502 (most recent that isn't suite-503)
+    expect(loadPreviousSuiteReport(runsDir, "small", "suite-503")?.suiteRunId).toBe("suite-502");
+
+    // With model filter: skips suite-502 (different model), gets suite-501
+    expect(loadPreviousSuiteReport(runsDir, "small", "suite-503", "openai/gpt-5.4")?.suiteRunId).toBe("suite-501");
+  });
+
+  it("loadLatestSuiteReport filters by workerModel", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-latest-"));
+    tempDirs.push(runsDir);
+
+    const suiteA = createSuiteReport(
+      "small",
+      "suite-601",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+    const suiteB = createSuiteReport(
+      "small",
+      "suite-602",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r2" }],
+      "2026-01-01T00:20:00Z",
+      undefined,
+      "anthropic/claude-sonnet",
+    );
+
+    writeSuiteReport(suiteA, runsDir);
+    writeSuiteReport(suiteB, runsDir);
+    updateSuiteIndex(runsDir);
+
+    // Without filter: latest is suite-602
+    expect(loadLatestSuiteReport(runsDir, "small")?.suiteRunId).toBe("suite-602");
+
+    // With filter: latest for gpt-5.4 is suite-601
+    expect(loadLatestSuiteReport(runsDir, "small", "openai/gpt-5.4")?.suiteRunId).toBe("suite-601");
+  });
+
+  it("old index entries without workerModel are skipped when filter is set", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-compat-"));
+    tempDirs.push(runsDir);
+
+    // Suite without workerModel (simulates old report)
+    const oldSuite = createSuiteReport(
+      "small",
+      "suite-701",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+    );
+    // Suite with workerModel
+    const newSuite = createSuiteReport(
+      "small",
+      "suite-702",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r2" }],
+      "2026-01-01T00:20:00Z",
+      undefined,
+      "openai/gpt-5.4",
+    );
+
+    writeSuiteReport(oldSuite, runsDir);
+    writeSuiteReport(newSuite, runsDir);
+    updateSuiteIndex(runsDir);
+
+    // Without filter: includes both
+    expect(loadLatestSuiteReport(runsDir, "small")?.suiteRunId).toBe("suite-702");
+    expect(loadPreviousSuiteReport(runsDir, "small", "suite-702")?.suiteRunId).toBe("suite-701");
+
+    // With filter: old suite (no workerModel) is skipped, no previous found
+    expect(loadPreviousSuiteReport(runsDir, "small", "suite-702", "openai/gpt-5.4")).toBeUndefined();
+  });
+});

@@ -155,6 +155,14 @@ function loadSuiteIndex(runsDir: string): SuiteIndexEntry[] {
   return readJsonFile<SuiteIndexEntry[]>(path.join(getSuitesDir(runsDir), SUITE_INDEX_FILE)) ?? [];
 }
 
+export function listSuiteModels(runsDir: string, suite: string): string[] {
+  const models = new Set<string>();
+  for (const entry of loadSuiteIndex(runsDir)) {
+    if (entry.suite === suite && entry.workerModel) models.add(entry.workerModel);
+  }
+  return [...models];
+}
+
 function compareTimestamps(a: string, b: string): number {
   return new Date(b).getTime() - new Date(a).getTime();
 }
@@ -256,6 +264,7 @@ export function createSuiteReport(
   reports: Array<{ report: EvalReport; runDir: string }>,
   completedAt = new Date().toISOString(),
   epochs?: number,
+  workerModel?: string,
 ): SuiteReport {
   const entries = reports.map(({ report, runDir }) => buildSuiteReportEntry(report, runDir));
   const sortedEntries = [...entries].sort((a, b) => suiteEntryKey(a).localeCompare(suiteEntryKey(b)));
@@ -273,6 +282,7 @@ export function createSuiteReport(
   return {
     suite,
     suiteRunId,
+    ...(workerModel ? { workerModel } : {}),
     startedAt,
     completedAt,
     entries: sortedEntries,
@@ -303,6 +313,7 @@ export function updateSuiteIndex(runsDir: string) {
     entries.push({
       suite: report.suite,
       suiteRunId: report.suiteRunId,
+      ...(report.workerModel ? { workerModel: report.workerModel } : {}),
       dir,
       startedAt: report.startedAt,
       completedAt: report.completedAt,
@@ -321,8 +332,10 @@ export function loadSuiteReport(runsDir: string, suite: string, suiteRunId: stri
   return readJsonFile<SuiteReport>(getSuiteReportPath(runsDir, suite, suiteRunId));
 }
 
-export function loadLatestSuiteReport(runsDir: string, suite: string): SuiteReport | undefined {
-  const entry = loadSuiteIndex(runsDir).find((indexEntry) => indexEntry.suite === suite);
+export function loadLatestSuiteReport(runsDir: string, suite: string, workerModel?: string): SuiteReport | undefined {
+  const entry = loadSuiteIndex(runsDir).find(
+    (indexEntry) => indexEntry.suite === suite && (workerModel === undefined || indexEntry.workerModel === workerModel),
+  );
   if (!entry) return undefined;
   return loadSuiteReport(runsDir, entry.suite, entry.suiteRunId);
 }
@@ -331,8 +344,11 @@ export function loadPreviousSuiteReport(
   runsDir: string,
   suite: string,
   currentSuiteRunId?: string,
+  workerModel?: string,
 ): SuiteReport | undefined {
-  const entries = loadSuiteIndex(runsDir).filter((indexEntry) => indexEntry.suite === suite);
+  const entries = loadSuiteIndex(runsDir).filter(
+    (indexEntry) => indexEntry.suite === suite && (workerModel === undefined || indexEntry.workerModel === workerModel),
+  );
   if (entries.length === 0) return undefined;
 
   if (!currentSuiteRunId) {
@@ -398,9 +414,7 @@ function compareSuiteEntry(
           : belowMean
             ? `all epochs below previous mean (${Math.round(baselineAgg.overall.mean * 10) / 10})`
             : undefined;
-        findings.push(
-          `Overall mean dropped by ${Math.abs(deltaOverall)} points` + (detail ? ` with ${detail}` : ""),
-        );
+        findings.push(`Overall mean dropped by ${Math.abs(deltaOverall)} points` + (detail ? ` with ${detail}` : ""));
       } else if (meanDrop > 1) {
         severity = "drift";
         findings.push(`Overall mean drifted by ${deltaOverall} points`);
