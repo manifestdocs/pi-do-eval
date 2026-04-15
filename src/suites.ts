@@ -194,6 +194,10 @@ function hasSeparatedRanges(current: EpochStats, baseline: EpochStats): boolean 
   return current.max < baseline.min;
 }
 
+function allBelowMean(current: EpochStats, baseline: EpochStats): boolean {
+  return current.n > 0 && baseline.n > 0 && current.values.every((v) => v < baseline.mean);
+}
+
 function buildSingleEntryMap(entries: SuiteReportEntry[]): Map<string, SuiteReportEntry> {
   const groups = new Map<string, SuiteReportEntry[]>();
   for (const entry of entries) {
@@ -385,12 +389,17 @@ function compareSuiteEntry(
     if (!severity && rawDelta < 0) {
       const meanDrop = Math.abs(rawDelta);
       const clearRegressionThreshold = Math.max(threshold * 2, 6);
-      if (meanDrop > threshold && (hasSeparatedRanges(currentAgg.overall, baselineAgg.overall) || meanDrop >= clearRegressionThreshold)) {
+      const separated = hasSeparatedRanges(currentAgg.overall, baselineAgg.overall);
+      const belowMean = allBelowMean(currentAgg.overall, baselineAgg.overall);
+      if (meanDrop > threshold && (separated || belowMean || meanDrop >= clearRegressionThreshold)) {
         severity = "clear";
+        const detail = separated
+          ? "non-overlapping run ranges"
+          : belowMean
+            ? `all epochs below previous mean (${Math.round(baselineAgg.overall.mean * 10) / 10})`
+            : undefined;
         findings.push(
-          hasSeparatedRanges(currentAgg.overall, baselineAgg.overall)
-            ? `Overall mean dropped by ${Math.abs(deltaOverall)} points with non-overlapping run ranges`
-            : `Overall mean dropped by ${Math.abs(deltaOverall)} points`,
+          `Overall mean dropped by ${Math.abs(deltaOverall)} points` + (detail ? ` with ${detail}` : ""),
         );
       } else if (meanDrop > 1) {
         severity = "drift";

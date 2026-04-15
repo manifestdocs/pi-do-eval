@@ -543,6 +543,18 @@ describe("compareSuiteReports with epochs", () => {
     expect(comparison.driftCount).toBe(1);
   });
 
+  it("detects clear regression when all epochs score below baseline mean", () => {
+    // Ranges overlap (current max 92 = baseline min 92) but every epoch is below baseline mean (94)
+    const baseline = makeEpochSuite("s-025", [{ trial: "todo", variant: "ts", overalls: [92, 94, 96] }]);
+    const current = makeEpochSuite("s-026", [{ trial: "todo", variant: "ts", overalls: [88, 90, 92] }]);
+
+    const comparison = compareSuiteReports(current, baseline);
+    const entry = expectPresent(comparison.entries[0], "comparison entry");
+    expect(entry.severity).toBe("clear");
+    expect(entry.regression).toBe(true);
+    expect(entry.findings[0]).toContain("below previous mean");
+  });
+
   it("detects hard regression when any epoch has status regression", () => {
     const baseline = makeEpochSuite("s-030", [{ trial: "todo", variant: "ts", overalls: [80, 80, 80] }]);
     const current = makeEpochSuite("s-031", [
