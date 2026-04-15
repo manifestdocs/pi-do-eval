@@ -91,6 +91,7 @@ export function updateRunIndex(runsDir: string, emit?: (event: EvalEvent) => voi
 export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string {
   const { meta, scores, findings, judgeResult } = report;
   const lines: string[] = [];
+  const scoringIssues = scores.issues ?? [];
 
   lines.push(`# Eval Report: ${meta.trial} (${meta.variant})`);
   lines.push("");
@@ -127,6 +128,13 @@ export function formatMarkdown(report: EvalReport, plugin?: EvalPlugin): string 
 
   lines.push(`**Overall: ${scores.overall}/100**`);
   lines.push("");
+
+  if (scoringIssues.length > 0) {
+    lines.push("## Scoring Issues");
+    lines.push("");
+    for (const issue of scoringIssues) lines.push(`- ${issue}`);
+    lines.push("");
+  }
 
   // Plugin-provided summary
   if (plugin?.formatSummary) {
@@ -190,7 +198,9 @@ export function printSummary(report: EvalReport) {
 
 export function printAggregatedSummary(entry: AggregatedSuiteEntry) {
   const fmt = (stats: { mean: number; stderr: number }) =>
-    stats.stderr > 0 ? `${stats.mean} +/-${stats.stderr}` : `${stats.mean}`;
+    stats.stderr > 0
+      ? `${Math.round(stats.mean * 10) / 10} +/-${Math.round(stats.stderr * 10) / 10}`
+      : `${Math.round(stats.mean * 10) / 10}`;
 
   console.log(`\n${entry.trial}/${entry.variant} (${entry.epochs} epochs)`);
   for (const [key, stats] of Object.entries(entry.deterministic)) {
@@ -220,8 +230,8 @@ export function printSuiteComparison(comparison: SuiteComparison) {
     const sev =
       entry.severity === "hard"
         ? "HARD"
-        : entry.severity === "significant"
-          ? "SIGNIFICANT"
+        : entry.severity === "clear"
+          ? "CLEAR"
           : entry.severity === "drift"
             ? "drift"
             : "";
@@ -237,7 +247,7 @@ export function printSuiteComparison(comparison: SuiteComparison) {
 
   const parts: string[] = [];
   if (comparison.hardRegressionCount > 0) parts.push(`${comparison.hardRegressionCount} hard`);
-  if (comparison.significantRegressionCount > 0) parts.push(`${comparison.significantRegressionCount} significant`);
+  if (comparison.clearRegressionCount > 0) parts.push(`${comparison.clearRegressionCount} clear`);
   if (comparison.driftCount > 0) parts.push(`${comparison.driftCount} drift`);
   console.log(`\n  ${parts.length > 0 ? parts.join(", ") : "no regressions"}\n`);
 }

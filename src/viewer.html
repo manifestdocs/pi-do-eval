@@ -185,7 +185,7 @@
                   <h3>Regression Analysis</h3>
                   <div class="regression-summary-line">
                     <span x-show="suiteRunComparison.hardRegressionCount > 0" class="severity-hard" x-text="suiteRunComparison.hardRegressionCount + ' hard'"></span>
-                    <span x-show="suiteRunComparison.significantRegressionCount > 0" class="severity-significant" x-text="suiteRunComparison.significantRegressionCount + ' significant'"></span>
+                    <span x-show="suiteRunComparison.clearRegressionCount > 0" class="severity-clear" x-text="suiteRunComparison.clearRegressionCount + ' clear'"></span>
                     <span x-show="suiteRunComparison.driftCount > 0" class="severity-drift" x-text="suiteRunComparison.driftCount + ' drift'"></span>
                     <span x-show="!suiteRunComparison.hasRegression && suiteRunComparison.driftCount === 0" style="color: var(--score-green)">No regressions</span>
                   </div>
@@ -214,7 +214,7 @@
                           <td style="text-align: center" :style="'color:' + deltaColor(entry.deltaOverall)" x-text="entry.deltaOverall != null ? formatDelta(entry.deltaOverall) : '--'"></td>
                           <td style="text-align: center">
                             <span x-show="entry.severity === 'hard'" class="severity-hard">HARD</span>
-                            <span x-show="entry.severity === 'significant'" class="severity-significant">SIGNIFICANT</span>
+                            <span x-show="entry.severity === 'clear'" class="severity-clear">CLEAR</span>
                             <span x-show="entry.severity === 'drift'" class="severity-drift">drift</span>
                             <span x-show="!entry.severity" style="color: var(--score-green)">ok</span>
                           </td>

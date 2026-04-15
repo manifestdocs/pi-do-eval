@@ -22,15 +22,18 @@ const SUITE_INDEX_FILE = "index.json";
 
 export function computeStats(values: number[]): EpochStats {
   const n = values.length;
+  if (n === 0) {
+    return { mean: 0, stderr: 0, min: 0, max: 0, n, values };
+  }
   const mean = values.reduce((a, b) => a + b, 0) / n;
   if (n <= 1) {
-    return { mean: Math.round(mean * 10) / 10, stderr: 0, min: mean, max: mean, n, values };
+    return { mean, stderr: 0, min: mean, max: mean, n, values };
   }
   const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (n - 1);
   const stderr = Math.sqrt(variance) / Math.sqrt(n);
   return {
-    mean: Math.round(mean * 10) / 10,
-    stderr: Math.round(stderr * 10) / 10,
+    mean,
+    stderr,
     min: Math.min(...values),
     max: Math.max(...values),
     n,
@@ -185,6 +188,10 @@ function completedCount(entry: AggregatedSuiteEntry): number {
 
 function rate(count: number, total: number): number {
   return total > 0 ? count / total : 0;
+}
+
+function hasSeparatedRanges(current: EpochStats, baseline: EpochStats): boolean {
+  return current.max < baseline.min;
 }
 
 function buildSingleEntryMap(entries: SuiteReportEntry[]): Map<string, SuiteReportEntry> {
@@ -355,8 +362,9 @@ function compareSuiteEntry(
   } else if ((current || currentAgg) && !baseline && !baselineAgg) {
     findings.push("New entry in current suite run");
   } else if (hasAggregatedComparison && currentAgg && baselineAgg) {
-    // Epoch-aware comparison using aggregated stats
-    deltaOverall = Math.round((currentAgg.overall.mean - baselineAgg.overall.mean) * 10) / 10;
+    // Epoch-aware comparison uses descriptive stability signals rather than inference.
+    const rawDelta = currentAgg.overall.mean - baselineAgg.overall.mean;
+    deltaOverall = roundToTenth(rawDelta);
 
     const baselineCompleted = completedCount(baselineAgg);
     const currentCompleted = completedCount(currentAgg);
@@ -374,27 +382,25 @@ function compareSuiteEntry(
       );
     }
 
-    // Statistical significance for score drop (only if not already hard)
-    if (!severity && deltaOverall < 0) {
-      const seDelta = Math.sqrt(currentAgg.overall.stderr ** 2 + baselineAgg.overall.stderr ** 2);
-      if (seDelta > 0) {
-        const zScore = Math.abs(deltaOverall) / seDelta;
-        if (zScore > 2.0) {
-          severity = "significant";
-          findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points (z=${zScore.toFixed(1)})`);
-        } else if (Math.abs(deltaOverall) > 1) {
-          severity = "drift";
-          findings.push(`Overall score drifted by ${deltaOverall} points (z=${zScore.toFixed(1)})`);
-        }
-      } else if (Math.abs(deltaOverall) > 0) {
-        // Zero stderr means identical values in both — any drop is significant
-        severity = "significant";
-        findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points`);
+    if (!severity && rawDelta < 0) {
+      const meanDrop = Math.abs(rawDelta);
+      const clearRegressionThreshold = Math.max(threshold * 2, 6);
+      if (meanDrop > threshold && (hasSeparatedRanges(currentAgg.overall, baselineAgg.overall) || meanDrop >= clearRegressionThreshold)) {
+        severity = "clear";
+        findings.push(
+          hasSeparatedRanges(currentAgg.overall, baselineAgg.overall)
+            ? `Overall mean dropped by ${Math.abs(deltaOverall)} points with non-overlapping run ranges`
+            : `Overall mean dropped by ${Math.abs(deltaOverall)} points`,
+        );
+      } else if (meanDrop > 1) {
+        severity = "drift";
+        findings.push(`Overall mean drifted by ${deltaOverall} points`);
       }
     }
   } else if (current && baseline) {
-    // Single-epoch fallback: flat threshold with severity labels
-    deltaOverall = Math.round((current.overall - baseline.overall) * 10) / 10;
+    // Single-epoch fallback uses flat thresholds and honest non-inferential labels.
+    const rawDelta = current.overall - baseline.overall;
+    deltaOverall = roundToTenth(rawDelta);
 
     if (baseline.status === "completed" && current.status !== "completed") {
       severity = "hard";
@@ -411,14 +417,17 @@ function compareSuiteEntry(
     }
 
     if (!severity && baseline.overall - current.overall > threshold) {
-      severity = "significant";
+      severity = "clear";
       findings.push(`Overall score dropped by ${Math.abs(deltaOverall)} points`);
+    } else if (!severity && baseline.overall - current.overall > 1) {
+      severity = "drift";
+      findings.push(`Overall score drifted by ${deltaOverall} points`);
     } else if (deltaOverall > threshold) {
       findings.push(`Overall score improved by ${deltaOverall} points`);
     }
   }
 
-  const regression = severity === "hard" || severity === "significant";
+  const regression = severity === "hard" || severity === "clear";
 
   return {
     trial,
@@ -471,13 +480,13 @@ export function compareSuiteReports(
 
   const averageDelta = roundToTenth(currentAverageOverall - baselineAverageOverall);
   if (baselineAverageOverall - currentAverageOverall > threshold) {
-    findings.unshift(`Suite average overall dropped by ${Math.abs(averageDelta)} points`);
+    findings.unshift(`Suite average overall worsened by ${Math.abs(averageDelta)} points`);
   } else if (averageDelta > threshold) {
     findings.unshift(`Suite average overall improved by ${averageDelta} points`);
   }
 
   const hardRegressionCount = entries.filter((e) => e.severity === "hard").length;
-  const significantRegressionCount = entries.filter((e) => e.severity === "significant").length;
+  const clearRegressionCount = entries.filter((e) => e.severity === "clear").length;
   const driftCount = entries.filter((e) => e.severity === "drift").length;
 
   return {
@@ -490,10 +499,9 @@ export function compareSuiteReports(
     averageDelta,
     entries,
     findings,
-    hasRegression:
-      entries.some((entry) => entry.regression) || baselineAverageOverall - currentAverageOverall > threshold,
+    hasRegression: entries.some((entry) => entry.regression),
     hardRegressionCount,
-    significantRegressionCount,
+    clearRegressionCount,
     driftCount,
   };
 }

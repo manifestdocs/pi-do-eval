@@ -224,7 +224,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; font-size: 14px; }
 
 /* Severity */
 .severity-hard { color: var(--accent-red); font-weight: 700; }
-.severity-significant { color: var(--accent-orange); font-weight: 700; }
+.severity-clear { color: var(--accent-orange); font-weight: 700; }
 .severity-drift { color: var(--foreground-subtle); }
 .regression-summary-line {
   display: flex;

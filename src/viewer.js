@@ -30,6 +30,36 @@ function createEvalViewer() {
     _sseConnected: false,
     _liveInterval: null,
 
+    // -- Normalization --------------------------------------------------------
+    _normalizeComparison(comparison) {
+      if (!comparison) return comparison;
+      // Migrate "significant" -> "clear" from older reports
+      if (comparison.significantRegressionCount != null && comparison.clearRegressionCount == null) {
+        comparison.clearRegressionCount = comparison.significantRegressionCount;
+        delete comparison.significantRegressionCount;
+      }
+      if (comparison.entries) {
+        for (const entry of comparison.entries) {
+          if (entry.severity === "significant") entry.severity = "clear";
+        }
+      }
+      return comparison;
+    },
+
+    _normalizeSuiteReport(report) {
+      if (!report) return report;
+      if (report.comparison) this._normalizeComparison(report.comparison);
+      return report;
+    },
+
+    _isValidRunReport(report) {
+      return !!report && !!report.meta && !!report.scores;
+    },
+
+    _isValidSuiteReport(report) {
+      return !!report && Array.isArray(report.entries) && !!report.summary;
+    },
+
     // -- Init ----------------------------------------------------------------
     async init() {
       this._trySSE();
@@ -277,7 +307,8 @@ function createEvalViewer() {
         const dir = `${suiteRunId}-${suiteName}`;
         const resp = await fetch(`runs/suites/${dir}/report.json`);
         if (resp.ok) {
-          this.suiteReportCache[key] = await resp.json();
+          const report = await resp.json();
+          this.suiteReportCache[key] = this._normalizeSuiteReport(report);
         }
       } catch {}
     },
@@ -289,7 +320,10 @@ function createEvalViewer() {
         children.map(async (run) => {
           try {
             const resp = await fetch(`runs/${run.dir}/report.json`);
-            if (resp.ok) this.suiteRunReports[run.dir] = await resp.json();
+            if (resp.ok) {
+              const report = await resp.json();
+              if (this._isValidRunReport(report)) this.suiteRunReports[run.dir] = report;
+            }
           } catch {}
         }),
       );
@@ -299,7 +333,12 @@ function createEvalViewer() {
       try {
         const resp = await fetch(`runs/${dir}/report.json`);
         if (resp.ok) {
-          this.runReport = await resp.json();
+          const report = await resp.json();
+          if (this._isValidRunReport(report)) {
+            this.runReport = report;
+          } else {
+            this.reportError = "Unsupported report format.";
+          }
         } else {
           this.reportError = `Failed to load report: ${resp.status}`;
         }
@@ -314,7 +353,8 @@ function createEvalViewer() {
       try {
         const resp = await fetch(`runs/${dir}/live.json`);
         if (resp.ok) {
-          this.runReport = await resp.json();
+          const report = await resp.json();
+          this.runReport = report;
           this.reportLoading = false;
         }
       } catch {}
@@ -329,7 +369,14 @@ function createEvalViewer() {
       try {
         const reportResp = await fetch(`runs/${dir}/report.json`);
         if (reportResp.ok) {
-          this.runReport = await reportResp.json();
+          const report = await reportResp.json();
+          if (!this._isValidRunReport(report)) {
+            this.reportError = "Unsupported report format.";
+            clearInterval(this._liveInterval);
+            this._liveInterval = null;
+            return;
+          }
+          this.runReport = report;
           clearInterval(this._liveInterval);
           this._liveInterval = null;
           const run = this.runs.find((r) => r.dir === dir);

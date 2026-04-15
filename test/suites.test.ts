@@ -39,6 +39,7 @@ function makeReport(trial: string, variant: string, overrides?: ReportOverrides)
     scores: {
       deterministic: { quality: 80, coverage: 70 },
       overall: 80,
+      issues: [],
     },
     session: {
       toolCalls: [],
@@ -253,7 +254,8 @@ describe("compareSuiteReports", () => {
 
     expect(comparison.hasRegression).toBe(false);
     expect(comparison.entries[0]?.regression).toBe(false);
-    expect(comparison.entries[0]?.findings).toEqual([]);
+    expect(comparison.entries[0]?.severity).toBe("drift");
+    expect(comparison.entries[0]?.findings).toEqual(["Overall score drifted by -2 points"]);
   });
 });
 
@@ -475,7 +477,7 @@ describe("createSuiteReport with epochs", () => {
       findings: [],
       hasRegression: false,
       hardRegressionCount: 0,
-      significantRegressionCount: 0,
+      clearRegressionCount: 0,
       driftCount: 1,
     };
 
@@ -517,16 +519,16 @@ describe("compareSuiteReports with epochs", () => {
     return createSuiteReport("small", suiteRunId, reports, "2026-01-01T00:10:00Z", entries[0]?.overalls.length);
   }
 
-  it("detects significant regression with clearly separated distributions", () => {
+  it("detects clear regression with clearly separated distributions", () => {
     const baseline = makeEpochSuite("s-010", [{ trial: "todo", variant: "ts", overalls: [78, 80, 82] }]);
     const current = makeEpochSuite("s-011", [{ trial: "todo", variant: "ts", overalls: [58, 60, 62] }]);
 
     const comparison = compareSuiteReports(current, baseline);
     const entry = expectPresent(comparison.entries[0], "comparison entry");
-    expect(entry.severity).toBe("significant");
+    expect(entry.severity).toBe("clear");
     expect(entry.regression).toBe(true);
     expect(comparison.hasRegression).toBe(true);
-    expect(comparison.significantRegressionCount).toBe(1);
+    expect(comparison.clearRegressionCount).toBe(1);
   });
 
   it("classifies overlapping distributions as drift, not regression", () => {
@@ -571,7 +573,7 @@ describe("compareSuiteReports with epochs", () => {
 
     const comparison = compareSuiteReports(current, baseline);
     const entry = expectPresent(comparison.entries[0], "comparison entry");
-    expect(entry.severity).toBe("significant");
+    expect(entry.severity).toBe("clear");
     expect(entry.currentAggregated?.epochs).toBe(3);
     expect(entry.baselineAggregated?.epochs).toBe(1);
   });
@@ -651,9 +653,9 @@ describe("compareSuiteReports with epochs", () => {
 
     const comparison = compareSuiteReports(current, baseline, { threshold: 5 });
     const entry = expectPresent(comparison.entries[0], "comparison entry");
-    expect(entry.severity).toBe("significant");
+    expect(entry.severity).toBe("clear");
     expect(entry.regression).toBe(true);
-    expect(comparison.significantRegressionCount).toBe(1);
+    expect(comparison.clearRegressionCount).toBe(1);
     expect(comparison.hardRegressionCount).toBe(0);
     expect(comparison.driftCount).toBe(0);
   });

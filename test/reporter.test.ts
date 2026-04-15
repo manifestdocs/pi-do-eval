@@ -12,8 +12,8 @@ import {
 import { writeSuiteReport } from "../src/suites.js";
 import type { AggregatedSuiteEntry, EvalReport, SuiteComparison } from "../src/types.js";
 
-function makeReport(overrides?: Partial<EvalReport>): EvalReport {
-  return {
+function makeReport(overrides?: Partial<EvalReport> & { scores?: Partial<EvalReport["scores"]> }): EvalReport {
+  const base: EvalReport = {
     meta: {
       trial: "test-project",
       variant: "baseline",
@@ -26,6 +26,7 @@ function makeReport(overrides?: Partial<EvalReport>): EvalReport {
       deterministic: { quality: 80, coverage: 60 },
       judge: { readability: 70 },
       overall: 75,
+      issues: [],
     },
     session: {
       toolCalls: [{ timestamp: 0, name: "write", arguments: {}, resultText: "ok", wasBlocked: false }],
@@ -44,7 +45,35 @@ function makeReport(overrides?: Partial<EvalReport>): EvalReport {
       reasons: { readability: "Code is clear and well-structured" },
       findings: ["Consider adding more comments"],
     },
+  };
+  const judgeScores = overrides?.scores ? overrides.scores.judge : base.scores.judge;
+
+  return {
+    ...base,
     ...overrides,
+    meta: {
+      ...base.meta,
+      ...overrides?.meta,
+    },
+    scores: {
+      deterministic: {
+        ...base.scores.deterministic,
+        ...overrides?.scores?.deterministic,
+      },
+      overall: overrides?.scores?.overall ?? base.scores.overall,
+      issues: overrides?.scores?.issues ?? base.scores.issues,
+      ...(judgeScores
+        ? {
+          judge: {
+            ...judgeScores,
+          },
+          }
+        : {}),
+    },
+    session: {
+      ...base.session,
+      ...overrides?.session,
+    },
   };
 }
 
@@ -69,6 +98,12 @@ describe("formatMarkdown", () => {
   it("renders overall score", () => {
     const md = formatMarkdown(makeReport());
     expect(md).toContain("**Overall: 75/100**");
+  });
+
+  it("renders scoring issues when present", () => {
+    const md = formatMarkdown(makeReport({ scores: { ...makeReport().scores, issues: ["Judge metric excluded"] } }));
+    expect(md).toContain("## Scoring Issues");
+    expect(md).toContain("- Judge metric excluded");
   });
 
   it("renders findings", () => {
@@ -251,7 +286,7 @@ describe("printSuiteComparison", () => {
           variant: "ts",
           deltaOverall: -8,
           regression: true,
-          severity: "significant",
+          severity: "clear",
           findings: ["Overall score dropped by 8 points"],
         },
         {
@@ -273,7 +308,7 @@ describe("printSuiteComparison", () => {
       findings: [],
       hasRegression: true,
       hardRegressionCount: 1,
-      significantRegressionCount: 1,
+      clearRegressionCount: 1,
       driftCount: 1,
     };
 
@@ -284,9 +319,9 @@ describe("printSuiteComparison", () => {
     expect(output).toContain("Suite: small");
     expect(output).toContain("suite-010");
     expect(output).toContain("suite-011");
-    expect(output).toContain("SIGNIFICANT");
+    expect(output).toContain("CLEAR");
     expect(output).toContain("drift");
     expect(output).toContain("HARD");
-    expect(output).toContain("1 hard, 1 significant, 1 drift");
+    expect(output).toContain("1 hard, 1 clear, 1 drift");
   });
 });
