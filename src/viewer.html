@@ -82,12 +82,27 @@
             </div>
           </template>
         </div>
+
+        <div class="bench-list" x-show="!loading && benchIndex.length > 0">
+          <div class="sidebar-section-label">BENCHMARKS</div>
+          <template x-for="bench in benchIndex" :key="bench.benchRunId">
+            <div
+              class="suite-run-row"
+              :class="{ active: selectedBenchId === bench.benchRunId }"
+              @click="selectBench(bench.benchRunId)"
+            >
+              <span class="sr-date" x-text="bench.suite"></span>
+              <span class="sr-meta" x-text="bench.models.length + ' models'"></span>
+              <span class="sr-date" style="font-size: 0.7rem" x-text="formatDate(bench.completedAt)"></span>
+            </div>
+          </template>
+        </div>
       </nav>
 
       <!-- ============ MAIN PANEL ============ -->
       <main class="main" id="main-content">
         <!-- No selection -->
-        <div class="empty-state" x-show="!selectedSuiteName && !selectedSuiteRunId && !selectedRunDir && !loading">
+        <div class="empty-state" x-show="!selectedSuiteName && !selectedSuiteRunId && !selectedRunDir && !selectedBenchId && !loading">
           <p>Select a suite from the sidebar.</p>
         </div>
 
@@ -176,6 +191,9 @@
                 <dl class="meta-card"><dt>Score</dt><dd x-text="currentSuiteRunItem.averageOverall ?? '--'"></dd></dl>
                 <template x-if="currentSuiteRunItem.epochs > 1">
                   <dl class="meta-card"><dt>Epochs</dt><dd x-text="currentSuiteRunItem.epochs"></dd></dl>
+                </template>
+                <template x-if="currentSuiteRunItem?.workerModel">
+                  <dl class="meta-card"><dt>Model</dt><dd><code x-text="currentSuiteRunItem.workerModel"></code></dd></dl>
                 </template>
               </div>
 
@@ -282,6 +300,74 @@
               </template>
             </div>
           </template>
+        </div>
+
+        <!-- ===== BENCH COMPARISON ===== -->
+        <div x-show="selectedBenchId && benchReport && !reportLoading && !reportError">
+          <h2>
+            <span x-text="'Bench: ' + (benchReport?.suite || '')"></span>
+            <span style="color: var(--foreground-subtle); font-weight: 400; font-size: 0.9rem; margin-left: 0.5rem" x-text="formatDate(benchReport?.completedAt)"></span>
+          </h2>
+
+          <div class="meta-grid">
+            <dl class="meta-card"><dt>Suite</dt><dd x-text="benchReport?.suite"></dd></dl>
+            <dl class="meta-card"><dt>Models</dt><dd x-text="benchReport?.models?.length"></dd></dl>
+            <dl class="meta-card"><dt>Trials</dt><dd x-text="benchReport?.entries?.length"></dd></dl>
+          </div>
+
+          <!-- Model averages -->
+          <div class="content-card">
+            <h3>Model Averages</h3>
+            <div class="meta-grid">
+              <template x-for="m in benchReport?.models || []" :key="m">
+                <dl class="meta-card">
+                  <dt><code x-text="shortModelName(m)"></code></dt>
+                  <dd>
+                    <span class="badge" :style="'background-color:' + scoreColor(benchReport?.averages?.[m])" x-text="benchReport?.averages?.[m] ?? '--'"></span>
+                  </dd>
+                </dl>
+              </template>
+            </div>
+          </div>
+
+          <!-- Comparison table -->
+          <div class="content-card">
+            <h3>Per-Trial Comparison</h3>
+            <div style="overflow-x: auto">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Trial / Variant</th>
+                    <template x-for="m in benchReport?.models || []" :key="m">
+                      <th style="text-align: center"><code x-text="shortModelName(m)"></code></th>
+                    </template>
+                    <template x-if="(benchReport?.models?.length || 0) >= 2">
+                      <th style="text-align: center">Delta</th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="entry in benchReport?.entries || []" :key="entry.trial + '/' + entry.variant">
+                    <tr>
+                      <td style="font-weight: 500" x-text="entry.trial + '/' + entry.variant"></td>
+                      <template x-for="m in benchReport?.models || []" :key="m">
+                        <td style="text-align: center">
+                          <span x-show="entry.overall[m] != null" class="badge" :style="'background-color:' + scoreColor(entry.overall[m])" x-text="entry.overall[m] ?? ''"></span>
+                          <span x-show="entry.overall[m] == null" style="color: var(--foreground-subtle)">--</span>
+                        </td>
+                      </template>
+                      <template x-if="(benchReport?.models?.length || 0) >= 2">
+                        <td style="text-align: center" x-data="{ get delta() { const ms = benchReport?.models || []; const first = entry.overall[ms[0]]; const last = entry.overall[ms[ms.length-1]]; return (first != null && last != null) ? Math.round((first - last) * 10) / 10 : null; } }">
+                          <span x-show="delta != null" :style="'color:' + deltaColor(delta)" x-text="formatDelta(delta)"></span>
+                          <span x-show="delta == null" style="color: var(--foreground-subtle)">--</span>
+                        </td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         <!-- ===== INDIVIDUAL RUN DETAIL (Level 3) ===== -->

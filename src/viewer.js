@@ -22,6 +22,11 @@ function createEvalViewer() {
     reportLoading: false,
     reportError: null,
 
+    // Bench
+    benchIndex: [],
+    selectedBenchId: null,
+    benchReport: null,
+
     // Chart instance
     _trendChart: null,
 
@@ -63,7 +68,7 @@ function createEvalViewer() {
     // -- Init ----------------------------------------------------------------
     async init() {
       this._trySSE();
-      await this._loadSuiteIndex();
+      await Promise.all([this._loadSuiteIndex(), this._loadBenchIndex()]);
     },
 
     // -- SSE -----------------------------------------------------------------
@@ -146,6 +151,13 @@ function createEvalViewer() {
       } catch {}
     },
 
+    async _loadBenchIndex() {
+      try {
+        const resp = await fetch("runs/bench/index.json");
+        if (resp.ok) this.benchIndex = await resp.json();
+      } catch {}
+    },
+
     _autoSelectIfNeeded() {
       if (this.selectedSuiteName || this.selectedSuiteRunId || this.selectedRunDir) return;
       const items = this.sidebarItems;
@@ -180,7 +192,8 @@ function createEvalViewer() {
           children.sort((a, b) => (a.trial + a.variant).localeCompare(b.trial + b.variant));
           const completed = children.filter((r) => r.status !== "running");
           const scores = completed.map((r) => r.overall).filter((s) => Number.isFinite(s) && s > 0);
-          const avg = scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
+          const avg =
+            scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
           const isRunning = children.some((r) => r.status === "running");
           const epochs = Math.max(1, ...children.map((r) => r.totalEpochs || 1));
 
@@ -193,6 +206,7 @@ function createEvalViewer() {
             durationMs: children.reduce((sum, r) => sum + (r.durationMs || 0), 0),
             status: isRunning ? "running" : this._worstStatus(children),
             epochs,
+            workerModel: children[0]?.workerModel || "",
             sortKey: this._runSortKey(children[0]),
           });
         }
@@ -222,6 +236,8 @@ function createEvalViewer() {
       this.selectedSuiteName = name;
       this.selectedSuiteRunId = null;
       this.selectedRunDir = null;
+      this.selectedBenchId = null;
+      this.benchReport = null;
       this.runReport = null;
       this.reportLoading = true;
       this.reportError = null;
@@ -237,6 +253,8 @@ function createEvalViewer() {
       this.selectedSuiteName = null;
       this.selectedSuiteRunId = suiteRunId;
       this.selectedRunDir = null;
+      this.selectedBenchId = null;
+      this.benchReport = null;
       this.runReport = null;
       this.reportLoading = true;
       this.reportError = null;
@@ -252,6 +270,8 @@ function createEvalViewer() {
       this.selectedSuiteName = null;
       this.selectedSuiteRunId = null;
       this.selectedRunDir = dir;
+      this.selectedBenchId = null;
+      this.benchReport = null;
       this.runReport = null;
       this.reportLoading = true;
       this.reportError = null;
@@ -272,6 +292,33 @@ function createEvalViewer() {
       } else {
         this._fetchRunReport(dir);
       }
+    },
+
+    selectBench(benchId) {
+      this.selectedSuiteName = null;
+      this.selectedSuiteRunId = null;
+      this.selectedRunDir = null;
+      this.selectedBenchId = benchId;
+      this.runReport = null;
+      this.benchReport = null;
+      this.reportLoading = true;
+      this.reportError = null;
+      const entry = this.benchIndex.find((e) => e.benchRunId === benchId);
+      if (!entry) {
+        this.reportError = "Bench report not found";
+        this.reportLoading = false;
+        return;
+      }
+      fetch(`runs/bench/${entry.dir}/report.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((report) => {
+          this.benchReport = report;
+          this.reportLoading = false;
+        })
+        .catch(() => {
+          this.reportError = "Failed to load bench report";
+          this.reportLoading = false;
+        });
     },
 
     toggleSuite(name) {
@@ -295,9 +342,7 @@ function createEvalViewer() {
     // -- Data loading --------------------------------------------------------
     async _loadAllSuiteReports(suiteName) {
       const entries = this.suiteIndex.filter((e) => e.suite === suiteName);
-      await Promise.all(
-        entries.map((e) => this._loadSuiteReport(suiteName, e.suiteRunId)),
-      );
+      await Promise.all(entries.map((e) => this._loadSuiteReport(suiteName, e.suiteRunId)));
     },
 
     async _loadSuiteReport(suiteName, suiteRunId) {
@@ -434,17 +479,19 @@ function createEvalViewer() {
         }
       }
 
-      return Array.from(trialKeys).sort().map((key) => {
-        const points = data.map((d) => {
-          if (!d.report?.entries) return null;
-          const [trial, variant] = key.split("/");
-          const matching = d.report.entries.filter((e) => e.trial === trial && e.variant === variant);
-          if (matching.length === 0) return null;
-          const avg = matching.reduce((sum, e) => sum + e.overall, 0) / matching.length;
-          return Math.round(avg * 10) / 10;
+      return Array.from(trialKeys)
+        .sort()
+        .map((key) => {
+          const points = data.map((d) => {
+            if (!d.report?.entries) return null;
+            const [trial, variant] = key.split("/");
+            const matching = d.report.entries.filter((e) => e.trial === trial && e.variant === variant);
+            if (matching.length === 0) return null;
+            const avg = matching.reduce((sum, e) => sum + e.overall, 0) / matching.length;
+            return Math.round(avg * 10) / 10;
+          });
+          return { key, points };
         });
-        return { key, points };
-      });
     },
 
     // -- Suite run view computed ----------------------------------------------
@@ -600,8 +647,18 @@ function createEvalViewer() {
           maintainAspectRatio: false,
           scales: {
             y: {
-              min: Math.max(0, Math.floor((Math.min(...avgScores, ...trialTrends.flatMap(t => t.points.filter(p => p != null))) - 5) / 5) * 5),
-              max: Math.min(100, Math.ceil((Math.max(...avgScores, ...trialTrends.flatMap(t => t.points.filter(p => p != null))) + 5) / 5) * 5),
+              min: Math.max(
+                0,
+                Math.floor(
+                  (Math.min(...avgScores, ...trialTrends.flatMap((t) => t.points.filter((p) => p != null))) - 5) / 5,
+                ) * 5,
+              ),
+              max: Math.min(
+                100,
+                Math.ceil(
+                  (Math.max(...avgScores, ...trialTrends.flatMap((t) => t.points.filter((p) => p != null))) + 5) / 5,
+                ) * 5,
+              ),
               grid: { color: "rgba(255,255,255,0.06)" },
               ticks: { color: "#7d8590", font: { size: 11 } },
             },
@@ -695,6 +752,12 @@ function createEvalViewer() {
     formatNumber(n) {
       if (n == null) return "0";
       return n.toLocaleString();
+    },
+
+    shortModelName(m) {
+      if (!m) return "--";
+      const parts = m.split("/");
+      return parts[parts.length - 1] || m;
     },
 
     _worstStatus(children) {
