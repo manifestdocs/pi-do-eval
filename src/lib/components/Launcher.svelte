@@ -8,8 +8,9 @@
 	import { activeProjectId, projectApiPath } from "../../stores/projects.js";
 	import { normalizeLauncherSelection } from "./launcher-state.js";
 
+	let { onlaunched }: { onlaunched?: () => void } = $props();
+
 	let config = $derived($launcherConfig);
-	let open = $state(true);
 	let runType = $state<"suite" | "trial" | "bench">("suite");
 	let selectedTrial = $state("");
 	let selectedVariant = $state("");
@@ -142,6 +143,7 @@
 				if (projectId) {
 					startPolling(projectId);
 				}
+				onlaunched?.();
 			} else {
 				error = result.error ?? "Failed to start run";
 			}
@@ -199,132 +201,104 @@
 </script>
 
 {#if config}
-	<div class="border-b border-border-default">
-		<button
-			type="button"
-			class="w-full flex items-center gap-1.5 px-4 py-2 text-left"
-			onclick={() => (open = !open)}
-		>
-			<span
-				class="text-foreground-subtle text-xs transition-transform"
-				class:rotate-90={open}
-			>&#9656;</span>
-			<span class="text-[10px] font-semibold tracking-wider uppercase text-foreground-subtle">
-				Launcher
-			</span>
-			{#if running}
-				<span class="text-accent-green text-[10px] font-bold animate-pulse ml-auto">RUNNING</span>
-			{/if}
-		</button>
+	<div class="space-y-2">
+		{#if running}
+			<div class="text-[10px] font-bold uppercase tracking-wider text-accent-green">
+				<span class="animate-pulse">Running…</span>
+			</div>
+		{/if}
 
-		{#if open}
-			<div class="px-4 pb-3 space-y-2">
-				<!-- Run type pills -->
-				<div class="flex gap-1">
-					{#each ["suite", "trial", "bench"] as type}
-						<button
-							type="button"
-							class="flex-1 text-[10px] font-semibold uppercase tracking-wider py-1 px-2 rounded border transition-colors"
-							class:bg-accent-blue={runType === type}
-							class:text-background={runType === type}
-							class:border-accent-blue={runType === type}
-							class:border-border-default={runType !== type}
-							class:text-foreground-muted={runType !== type}
-							class:hover:border-foreground-subtle={runType !== type}
-							onclick={() => (runType = type as "suite" | "trial" | "bench")}
-						>
-							{type}
-						</button>
-					{/each}
-				</div>
-
-				<!-- Trial selectors -->
-				{#if runType === "trial"}
-					<select
-						class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
-						bind:value={selectedTrial}
-					>
-						{#each config.trials as trial (trial.name)}
-							<option value={trial.name}>{trial.name}</option>
-						{/each}
-					</select>
-					<select
-						class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
-						bind:value={selectedVariant}
-					>
-						{#each availableVariants as variant (variant)}
-							<option value={variant}>{variant}</option>
-						{/each}
-					</select>
-				{:else}
-					<!-- Suite selector -->
-					<select
-						class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
-						bind:value={selectedSuite}
-					>
-						{#each suiteNames as suite (suite)}
-							<option value={suite}>{suite} ({config.suites[suite]?.length ?? 0})</option>
-						{/each}
-					</select>
-				{/if}
-
-				<!-- Model selector -->
-				{#if runType !== "bench"}
-					<div>
-						<label class="block text-[10px] uppercase tracking-wider text-foreground-subtle mb-1">
-							Model
-							<select
-								class="mt-1 w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
-								bind:value={selectedModel}
-							>
-							<option value="">{defaultWorkerLabel}</option>
-							{#each modelOptions as model (model)}
-								<option value={model}>{model}</option>
-							{/each}
-						</select>
-						</label>
-					</div>
-				{:else}
-					<div class="text-[10px] text-foreground-muted">
-						<span class="uppercase tracking-wider text-foreground-subtle">Models:</span>
-						{#if modelOptions.length > 0}
-							{modelOptions.join(", ")}
-						{:else}
-							<span class="text-foreground-subtle">from config</span>
-						{/if}
-					</div>
-				{/if}
-
-				<!-- Options row -->
-				<label class="flex items-center gap-1.5 text-xs text-foreground-muted cursor-pointer">
-					<input type="checkbox" bind:checked={noJudge} class="accent-accent-blue" />
-					No judge
-				</label>
-
-				<!-- Run button -->
+		<div class="flex gap-1">
+			{#each ["suite", "trial", "bench"] as type}
 				<button
 					type="button"
-					class="w-full py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-40"
-					class:bg-score-green={!running}
-					class:text-background={!running}
-					class:hover:brightness-110={!running}
-					class:bg-background-muted={running}
-					class:text-foreground-muted={running}
-					disabled={!canRun() || running}
-					onclick={launch}
+					class="flex-1 text-[10px] font-semibold uppercase tracking-wider py-1 px-2 rounded border transition-colors"
+					class:bg-accent-blue={runType === type}
+					class:text-background={runType === type}
+					class:border-accent-blue={runType === type}
+					class:border-border-default={runType !== type}
+					class:text-foreground-muted={runType !== type}
+					class:hover:border-foreground-subtle={runType !== type}
+					onclick={() => (runType = type as "suite" | "trial" | "bench")}
 				>
-					{#if running}
-						Running...
-					{:else}
-						RUN
-					{/if}
+					{type}
 				</button>
+			{/each}
+		</div>
 
-				<!-- Error -->
-				{#if error}
-					<p class="text-accent-red text-xs">{error}</p>
+		{#if runType === "trial"}
+			<select
+				class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
+				bind:value={selectedTrial}
+			>
+				{#each config.trials as trial (trial.name)}
+					<option value={trial.name}>{trial.name}</option>
+				{/each}
+			</select>
+			<select
+				class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
+				bind:value={selectedVariant}
+			>
+				{#each availableVariants as variant (variant)}
+					<option value={variant}>{variant}</option>
+				{/each}
+			</select>
+		{:else}
+			<select
+				class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
+				bind:value={selectedSuite}
+			>
+				{#each suiteNames as suite (suite)}
+					<option value={suite}>{suite} ({config.suites[suite]?.length ?? 0})</option>
+				{/each}
+			</select>
+		{/if}
+
+		{#if runType !== "bench"}
+			<label class="block">
+				<span class="block text-[10px] uppercase tracking-wider text-foreground-subtle mb-1">Model</span>
+				<select
+					class="w-full bg-background-muted border border-border-default rounded px-2 py-1 text-xs text-foreground"
+					bind:value={selectedModel}
+				>
+					<option value="">{defaultWorkerLabel}</option>
+					{#each modelOptions as model (model)}
+						<option value={model}>{model}</option>
+					{/each}
+				</select>
+			</label>
+		{:else}
+			<div class="text-[10px] text-foreground-muted">
+				<span class="uppercase tracking-wider text-foreground-subtle">Models:</span>
+				{#if modelOptions.length > 0}
+					{modelOptions.join(", ")}
+				{:else}
+					<span class="text-foreground-subtle">from config</span>
 				{/if}
 			</div>
+		{/if}
+
+		<label class="flex items-center gap-1.5 text-xs text-foreground-muted cursor-pointer">
+			<input type="checkbox" bind:checked={noJudge} class="accent-accent-blue" />
+			No judge
+		</label>
+
+		<button
+			type="button"
+			class="w-full py-1.5 rounded text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-40"
+			class:bg-score-green={!running}
+			class:text-background={!running}
+			class:hover:brightness-110={!running}
+			class:bg-background-muted={running}
+			class:text-foreground-muted={running}
+			disabled={!canRun() || running}
+			onclick={launch}
+		>
+			{running ? "Running..." : "Run"}
+		</button>
+
+		{#if error}
+			<p class="text-accent-red text-xs">{error}</p>
 		{/if}
 	</div>
 {/if}
