@@ -81,42 +81,44 @@
 	</div>
 {:else}
 	<div class="flex h-full flex-col">
-		<header class="flex flex-wrap items-center gap-4 border-b border-border-default bg-background-subtle px-5 py-3">
-			<div class="min-w-0">
+		<header class="grid grid-cols-[320px_1fr] items-center border-b border-border-default bg-background-subtle">
+			<div class="min-w-0 px-5 py-3">
 				<h1 class="truncate text-[15px] font-semibold text-foreground">{knownProject.name}</h1>
 				<p class="truncate text-[11px] text-foreground-muted" title={knownProject.evalDir}>
 					{knownProject.evalDir}
 				</p>
 			</div>
-			<div class="ml-auto flex flex-wrap items-center gap-3">
+			<div class="flex flex-wrap items-center gap-3 px-5 py-3">
 				<Launcher />
-				{#if confirmRemove}
-					<div class="flex items-center gap-2 text-[11px] text-foreground-muted">
-						<span>Remove?</span>
+				<div class="ml-auto">
+					{#if confirmRemove}
+						<div class="flex items-center gap-2 text-[11px] text-foreground-muted">
+							<span>Remove?</span>
+							<button
+								type="button"
+								class="rounded border border-accent-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-red transition-colors hover:bg-accent-red hover:text-background"
+								onclick={() => void doRemove()}
+							>
+								Confirm
+							</button>
+							<button
+								type="button"
+								class="rounded border border-border-default px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground"
+								onclick={() => (confirmRemove = false)}
+							>
+								Cancel
+							</button>
+						</div>
+					{:else}
 						<button
 							type="button"
-							class="rounded border border-accent-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-red transition-colors hover:bg-accent-red hover:text-background"
-							onclick={() => void doRemove()}
+							class="rounded border border-border-default px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-foreground-subtle hover:text-foreground"
+							onclick={() => (confirmRemove = true)}
 						>
-							Confirm
+							Remove
 						</button>
-						<button
-							type="button"
-							class="rounded border border-border-default px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground"
-							onclick={() => (confirmRemove = false)}
-						>
-							Cancel
-						</button>
-					</div>
-				{:else}
-					<button
-						type="button"
-						class="rounded border border-border-default px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-foreground-subtle hover:text-foreground"
-						onclick={() => (confirmRemove = true)}
-					>
-						Remove
-					</button>
-				{/if}
+					{/if}
+				</div>
 			</div>
 		</header>
 
