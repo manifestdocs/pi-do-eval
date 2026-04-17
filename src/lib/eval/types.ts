@@ -381,6 +381,8 @@ export interface LauncherTrial {
   name: string;
   description: string;
   variants: string[];
+  tags?: string[];
+  enabled?: boolean;
 }
 
 export type SuiteSource = "file" | "config";

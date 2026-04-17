@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadFileSuites, mergeSuiteSources } from "$eval/suite-files.js";
+import { loadTrialMeta } from "$eval/trial-meta.js";
 import type { LauncherConfig, LauncherSuiteDef } from "$eval/types.js";
 
 interface TrialConfigModule {
@@ -40,10 +41,13 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
   const trials = await Promise.all(
     trialNames.map(async (trialName) => {
       const config = await loadTrialConfig(evalDir, trialName);
+      const meta = loadTrialMeta(evalDir, trialName);
       return {
         name: trialName,
-        description: config?.description ?? "",
+        description: meta?.description ?? config?.description ?? "",
         variants: Object.keys(config?.variants ?? {}),
+        ...(meta?.tags ? { tags: meta.tags } : {}),
+        enabled: meta?.enabled ?? true,
       };
     }),
   );

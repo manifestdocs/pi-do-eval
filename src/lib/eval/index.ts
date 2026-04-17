@@ -7,6 +7,7 @@ export {
   type SuiteDefinition,
   writeFileSuite,
 } from "./suite-files.js";
+export { loadTrialMeta, type TrialMeta, writeTrialMeta } from "./trial-meta.js";
 export {
   finalizeJudgeOutcome,
   findBalancedJsonObjects,

@@ -1,11 +1,18 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { launcherBusy, launcherConfig, launchRun } from "../../../../stores/launcher.js";
+	import {
+		launcherBusy,
+		launcherConfig,
+		loadLauncherConfig,
+		launchRun,
+	} from "../../../../stores/launcher.js";
+	import { activeProjectId, projectApiPath } from "../../../../stores/projects.js";
 	import { suiteIndex } from "../../../../stores/runs.js";
 
 	let config = $derived($launcherConfig);
 	let error = $state<string | null>(null);
+	let busyTrial = $state<string | null>(null);
 
 	let trialUsage = $derived.by(() => {
 		const usage = new Map<string, Set<string>>();
@@ -21,17 +28,6 @@
 		return usage;
 	});
 
-	let lastRunByTrial = $derived.by(() => {
-		const map = new Map<string, { date: string; score: number }>();
-		// There isn't trial-level indexing, but suite runs give us approximate signal.
-		for (const entry of $suiteIndex) {
-			const date = entry.completedAt;
-			const score = entry.averageOverall;
-			map.set(entry.suite, { date, score });
-		}
-		return map;
-	});
-
 	async function runTrial(trial: string, variant: string) {
 		error = null;
 		const result = await launchRun({ type: "trial", trial, variant });
@@ -41,6 +37,30 @@
 		}
 		await goto(`/projects/${encodeURIComponent(page.params.projectId ?? "")}/runs`);
 	}
+
+	async function toggleEnabled(trialName: string, nextEnabled: boolean) {
+		const projectId = $activeProjectId;
+		if (!projectId) return;
+		busyTrial = trialName;
+		error = null;
+		try {
+			const url = projectApiPath(`/trials/${encodeURIComponent(trialName)}`, projectId);
+			if (!url) return;
+			const resp = await fetch(url, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled: nextEnabled }),
+			});
+			if (!resp.ok) {
+				const payload = (await resp.json().catch(() => null)) as { error?: string } | null;
+				error = payload?.error ?? "Failed to update trial";
+				return;
+			}
+			await loadLauncherConfig(projectId);
+		} finally {
+			busyTrial = null;
+		}
+	}
 </script>
 
 <main class="h-full overflow-y-auto p-6">
@@ -49,7 +69,9 @@
 			<div>
 				<h2 class="text-[16px] font-semibold text-foreground">Trials</h2>
 				<p class="mt-1 text-[12px] text-foreground-muted">
-					Defined in <code>eval/trials/*/config.ts</code>. Edit files to add or modify.
+					Trial code lives in <code>eval/trials/*/config.ts</code>. Per-trial overrides
+					(description, tags, enabled) live in an optional <code>meta.json</code> alongside and
+					can be edited here.
 				</p>
 			</div>
 		</div>
@@ -82,8 +104,34 @@
 					</thead>
 					<tbody>
 						{#each config.trials as trial (trial.name)}
-							<tr class="border-t border-border-muted align-top">
-								<td class="px-3 py-2 font-mono text-[11px] text-foreground">{trial.name}</td>
+							{@const enabled = trial.enabled !== false}
+							<tr
+								class="border-t border-border-muted align-top"
+								class:opacity-60={!enabled}
+							>
+								<td class="px-3 py-2">
+									<div class="flex items-start gap-2">
+										<input
+											type="checkbox"
+											class="mt-1 accent-accent-blue"
+											checked={enabled}
+											disabled={busyTrial === trial.name}
+											onchange={(event) =>
+												void toggleEnabled(trial.name, (event.currentTarget as HTMLInputElement).checked)}
+											title={enabled ? "Disable trial" : "Enable trial"}
+										/>
+										<div class="min-w-0">
+											<div class="font-mono text-[11px] text-foreground">{trial.name}</div>
+											{#if trial.tags && trial.tags.length > 0}
+												<div class="mt-1 flex flex-wrap gap-1">
+													{#each trial.tags as tag (tag)}
+														<code class="rounded border border-border-muted bg-background-muted px-1 py-0.5 text-[10px] text-foreground-muted">{tag}</code>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</div>
+								</td>
 								<td class="px-3 py-2 text-foreground-muted">{trial.description || "—"}</td>
 								<td class="px-3 py-2">
 									<div class="flex flex-wrap gap-1">
@@ -105,7 +153,8 @@
 											<button
 												type="button"
 												class="rounded border border-border-default px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-accent-blue hover:text-accent-blue disabled:opacity-40"
-												disabled={$launcherBusy}
+												disabled={$launcherBusy || !enabled}
+												title={enabled ? `Run ${trial.name} (${variant})` : "Trial is disabled"}
 												onclick={() => void runTrial(trial.name, variant)}
 											>
 												Run {variant}
