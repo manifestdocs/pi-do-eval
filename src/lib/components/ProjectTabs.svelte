@@ -4,11 +4,9 @@
 	let { projectId }: { projectId: string } = $props();
 
 	const tabs = [
-		{ slug: "overview", label: "Overview" },
+		{ slug: "runs", label: "Runs" },
 		{ slug: "trials", label: "Trials" },
 		{ slug: "suites", label: "Suites" },
-		{ slug: "runs", label: "Runs" },
-		{ slug: "settings", label: "Settings" },
 	];
 
 	let pathname = $derived(page.url?.pathname ?? "");

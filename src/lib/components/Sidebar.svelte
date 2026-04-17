@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Launcher from "./Launcher.svelte";
 	import { sidebarItems, benchIndex } from "../../stores/runs.js";
 	import {
 		selectedSuiteName,
@@ -14,10 +15,15 @@
 		toggleSuite,
 		toggleSuiteRun,
 	} from "../../stores/selection.js";
+	import { activeProject } from "../../stores/projects.js";
 	import { scoreColor, deltaColor, formatDelta, formatDate } from "$lib/utils.js";
 </script>
 
 <nav class="flex flex-col h-full overflow-y-auto bg-background-subtle border-r border-border-default">
+	{#key $activeProject?.id ?? "no-project"}
+		<Launcher />
+	{/key}
+
 	<div class="px-4 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-foreground-subtle border-b border-border-muted">
 		Suites & Runs
 	</div>
