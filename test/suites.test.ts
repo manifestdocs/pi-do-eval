@@ -97,6 +97,150 @@ afterEach(() => {
   }
 });
 
+describe("regression status on SuiteIndexEntry", () => {
+  it("marks the first suite run as baseline", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-regression-"));
+    tempDirs.push(runsDir);
+
+    const first = makeSuite(
+      [{ report: makeReport("todo-cli", "typescript-vitest"), runDir: "r1" }],
+      "suite-010",
+    );
+    writeSuiteReport(first, runsDir);
+    updateSuiteIndex(runsDir);
+
+    const index = JSON.parse(
+      fs.readFileSync(path.join(runsDir, "suites", "index.json"), "utf-8"),
+    ) as Array<{ suiteRunId: string; regressionStatus?: string }>;
+
+    expect(index.find((entry) => entry.suiteRunId === "suite-010")?.regressionStatus).toBe(
+      "baseline",
+    );
+  });
+
+  it("derives improved/stable/regressed from suite report comparison", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-regression-"));
+    tempDirs.push(runsDir);
+
+    const baseline = makeSuite(
+      [{ report: makeReport("todo-cli", "typescript-vitest"), runDir: "r1" }],
+      "suite-base",
+    );
+    writeSuiteReport(baseline, runsDir);
+
+    // Report with "regressed" comparison (hasRegression=true, averageDelta=-8)
+    const regressed = makeSuite(
+      [
+        {
+          report: makeReport("todo-cli", "typescript-vitest", {
+            scores: { deterministic: { quality: 60 }, overall: 60 },
+          }),
+          runDir: "r2",
+        },
+      ],
+      "suite-regressed",
+    );
+    regressed.comparison = {
+      suite: "small",
+      currentSuiteRunId: "suite-regressed",
+      baselineSuiteRunId: "suite-base",
+      threshold: 3,
+      currentAverageOverall: 60,
+      baselineAverageOverall: 80,
+      averageDelta: -20,
+      entries: [],
+      findings: [],
+      hasRegression: true,
+      hardRegressionCount: 0,
+      clearRegressionCount: 1,
+      driftCount: 0,
+    };
+    writeSuiteReport(regressed, runsDir);
+
+    // Report with "improved" comparison
+    const improved = makeSuite(
+      [
+        {
+          report: makeReport("todo-cli", "typescript-vitest", {
+            scores: { deterministic: { quality: 95 }, overall: 95 },
+          }),
+          runDir: "r3",
+        },
+      ],
+      "suite-improved",
+    );
+    improved.comparison = {
+      suite: "small",
+      currentSuiteRunId: "suite-improved",
+      baselineSuiteRunId: "suite-base",
+      threshold: 3,
+      currentAverageOverall: 95,
+      baselineAverageOverall: 80,
+      averageDelta: 15,
+      entries: [],
+      findings: [],
+      hasRegression: false,
+      hardRegressionCount: 0,
+      clearRegressionCount: 0,
+      driftCount: 0,
+    };
+    writeSuiteReport(improved, runsDir);
+
+    // Report with "stable" comparison (averageDelta within threshold)
+    const stable = makeSuite(
+      [
+        {
+          report: makeReport("todo-cli", "typescript-vitest", {
+            scores: { deterministic: { quality: 81 }, overall: 81 },
+          }),
+          runDir: "r4",
+        },
+      ],
+      "suite-stable",
+    );
+    stable.comparison = {
+      suite: "small",
+      currentSuiteRunId: "suite-stable",
+      baselineSuiteRunId: "suite-base",
+      threshold: 3,
+      currentAverageOverall: 81,
+      baselineAverageOverall: 80,
+      averageDelta: 1,
+      entries: [],
+      findings: [],
+      hasRegression: false,
+      hardRegressionCount: 0,
+      clearRegressionCount: 0,
+      driftCount: 0,
+    };
+    writeSuiteReport(stable, runsDir);
+
+    updateSuiteIndex(runsDir);
+
+    const index = JSON.parse(
+      fs.readFileSync(path.join(runsDir, "suites", "index.json"), "utf-8"),
+    ) as Array<{
+      suiteRunId: string;
+      regressionStatus?: string;
+      regressionDelta?: number;
+      comparedToSuiteRunId?: string;
+    }>;
+
+    const baselineEntry = index.find((entry) => entry.suiteRunId === "suite-base");
+    const regressedEntry = index.find((entry) => entry.suiteRunId === "suite-regressed");
+    const improvedEntry = index.find((entry) => entry.suiteRunId === "suite-improved");
+    const stableEntry = index.find((entry) => entry.suiteRunId === "suite-stable");
+
+    expect(baselineEntry?.regressionStatus).toBe("baseline");
+    expect(regressedEntry?.regressionStatus).toBe("regressed");
+    expect(regressedEntry?.regressionDelta).toBe(-20);
+    expect(regressedEntry?.comparedToSuiteRunId).toBe("suite-base");
+    expect(improvedEntry?.regressionStatus).toBe("improved");
+    expect(improvedEntry?.regressionDelta).toBe(15);
+    expect(stableEntry?.regressionStatus).toBe("stable");
+  });
+});
+
 describe("suite reports", () => {
   it("writes, indexes, and reloads suite runs", () => {
     const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-suites-"));

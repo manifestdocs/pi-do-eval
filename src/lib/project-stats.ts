@@ -1,4 +1,4 @@
-import type { LauncherConfig, SuiteIndexEntry } from "$eval/types.js";
+import type { LauncherConfig, RegressionStatus, SuiteIndexEntry } from "$eval/types.js";
 
 export interface LatestSuiteRun {
   suite: string;
@@ -7,6 +7,7 @@ export interface LatestSuiteRun {
   completedAt: string;
   hardFailureCount: number;
   delta: number | null;
+  regressionStatus: RegressionStatus;
 }
 
 export interface ProjectStats {
@@ -60,5 +61,6 @@ function findLatestSuiteRun(entries: SuiteIndexEntry[]): LatestSuiteRun | null {
     completedAt: latest.completedAt,
     hardFailureCount: latest.hardFailureCount,
     delta,
+    regressionStatus: latest.regressionStatus ?? (prior ? "stable" : "baseline"),
   };
 }

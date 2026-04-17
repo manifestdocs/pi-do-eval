@@ -211,6 +211,8 @@ export interface SuiteReport {
   comparison?: SuiteComparison;
 }
 
+export type RegressionStatus = "improved" | "stable" | "regressed" | "baseline";
+
 export interface SuiteIndexEntry {
   suite: string;
   suiteRunId: string;
@@ -222,6 +224,9 @@ export interface SuiteIndexEntry {
   hardFailureCount: number;
   averageOverall: number;
   epochs?: number;
+  regressionStatus?: RegressionStatus;
+  regressionDelta?: number;
+  comparedToSuiteRunId?: string;
 }
 
 export interface SuiteComparisonOptions {

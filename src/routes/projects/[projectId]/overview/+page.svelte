@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Launcher from "$lib/components/Launcher.svelte";
+	import RegressionBadge from "$lib/components/RegressionBadge.svelte";
 	import { launcherConfig } from "../../../../stores/launcher.js";
 	import { suiteIndex, runs } from "../../../../stores/runs.js";
 	import { activeProject } from "../../../../stores/projects.js";
@@ -41,7 +42,10 @@
 					<div class="mt-3 rounded border border-border-default bg-background-subtle p-4">
 						<div class="flex items-start justify-between gap-4">
 							<div class="min-w-0">
-								<div class="text-[12px] font-semibold text-foreground">{stats.latestSuiteRun.suite}</div>
+								<div class="flex items-center gap-2">
+									<span class="text-[12px] font-semibold text-foreground">{stats.latestSuiteRun.suite}</span>
+									<RegressionBadge status={stats.latestSuiteRun.regressionStatus} />
+								</div>
 								<div class="mt-0.5 text-[11px] text-foreground-muted">
 									{formatDate(stats.latestSuiteRun.completedAt)}
 								</div>

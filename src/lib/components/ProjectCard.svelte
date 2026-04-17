@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ProjectStats } from "$lib/project-stats.js";
+	import RegressionBadge from "$lib/components/RegressionBadge.svelte";
 	import { deltaColor, formatDate, formatDelta, scoreColor } from "$lib/utils.js";
 	import type { ProjectSummary } from "../../stores/projects.js";
 
@@ -25,12 +26,15 @@
 		</div>
 		{#if latest}
 			<div class="flex flex-col items-end gap-1">
-				<span
-					class="inline-block min-w-[2.5rem] rounded px-1.5 py-0.5 text-center text-[12px] font-bold"
-					style="background-color: {scoreColor(latest.averageOverall)}; color: var(--color-background)"
-				>
-					{latest.averageOverall}
-				</span>
+				<div class="flex items-center gap-1.5">
+					<RegressionBadge status={latest.regressionStatus} />
+					<span
+						class="inline-block min-w-[2.5rem] rounded px-1.5 py-0.5 text-center text-[12px] font-bold"
+						style="background-color: {scoreColor(latest.averageOverall)}; color: var(--color-background)"
+					>
+						{latest.averageOverall}
+					</span>
+				</div>
 				{#if latest.delta != null && latest.delta !== 0}
 					<span class="font-mono text-[11px]" style="color: {deltaColor(latest.delta)}">
 						{formatDelta(Math.round(latest.delta * 10) / 10)}

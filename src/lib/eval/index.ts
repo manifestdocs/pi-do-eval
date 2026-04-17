@@ -68,6 +68,7 @@ export type {
   PluginEvent,
   PluginScoreResult,
   RegressionSeverity,
+  RegressionStatus,
   RunEnvironment,
   RunIndexEntry,
   RunRequest,

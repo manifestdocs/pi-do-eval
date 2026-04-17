@@ -4,6 +4,7 @@ import type {
   AggregatedSuiteEntry,
   EpochStats,
   EvalReport,
+  RegressionStatus,
   StatusCounts,
   SuiteComparison,
   SuiteComparisonEntry,
@@ -305,6 +306,13 @@ export function writeSuiteReport(report: SuiteReport, runsDir: string): string {
   return suiteDir;
 }
 
+export function deriveRegressionStatus(comparison: SuiteComparison | undefined): RegressionStatus {
+  if (!comparison) return "baseline";
+  if (comparison.hasRegression) return "regressed";
+  if (comparison.averageDelta > comparison.threshold) return "improved";
+  return "stable";
+}
+
 export function updateSuiteIndex(runsDir: string) {
   const suitesDir = getSuitesDir(runsDir);
   if (!fs.existsSync(suitesDir)) return;
@@ -317,7 +325,7 @@ export function updateSuiteIndex(runsDir: string) {
     const report = readJsonFile<SuiteReport>(path.join(dirPath, SUITE_REPORT_FILE));
     if (!report) continue;
 
-    entries.push({
+    const entry: SuiteIndexEntry = {
       suite: report.suite,
       suiteRunId: report.suiteRunId,
       ...(report.workerModel ? { workerModel: report.workerModel } : {}),
@@ -328,7 +336,15 @@ export function updateSuiteIndex(runsDir: string) {
       hardFailureCount: report.summary.hardFailureCount,
       averageOverall: averageAggregatedOverall(buildAggregatedEntryMap(report).values()),
       ...(report.epochs ? { epochs: report.epochs } : {}),
-    });
+      regressionStatus: deriveRegressionStatus(report.comparison),
+    };
+
+    if (report.comparison) {
+      entry.regressionDelta = report.comparison.averageDelta;
+      entry.comparedToSuiteRunId = report.comparison.baselineSuiteRunId;
+    }
+
+    entries.push(entry);
   }
 
   entries.sort(compareSuiteIndexEntries);
