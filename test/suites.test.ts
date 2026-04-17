@@ -35,6 +35,7 @@ function makeReport(trial: string, variant: string, overrides?: ReportOverrides)
       startedAt: "2026-01-01T00:00:00Z",
       durationMs: 30_000,
       status: "completed",
+      verifyPassed: true,
     },
     scores: {
       deterministic: { quality: 80, coverage: 70 },
@@ -126,7 +127,7 @@ describe("suite reports", () => {
         { report: makeReport("todo-cli", "typescript-vitest"), runDir: "run-a" },
         {
           report: makeReport("booking-api", "typescript-vitest", {
-            findings: ["Verification failed"],
+            meta: { verifyPassed: false },
           }),
           runDir: "run-b",
         },
@@ -148,6 +149,36 @@ describe("suite reports", () => {
       hardFailureCount: 2,
       averageOverall: 80,
     });
+  });
+
+  it("keeps distinct suite directories when suite names and run ids collide textually", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-suite-dirs-"));
+    tempDirs.push(runsDir);
+
+    const first = createSuiteReport(
+      "bar-baz",
+      "foo",
+      [{ report: makeReport("todo-cli", "typescript-vitest"), runDir: "run-a" }],
+      "2026-01-01T00:10:00Z",
+    );
+    const second = createSuiteReport(
+      "baz",
+      "foo-bar",
+      [{ report: makeReport("stack-calc", "typescript-vitest"), runDir: "run-b" }],
+      "2026-01-01T00:11:00Z",
+    );
+
+    writeSuiteReport(first, runsDir);
+    writeSuiteReport(second, runsDir);
+    updateSuiteIndex(runsDir);
+
+    const firstLoaded = expectPresent(loadSuiteReport(runsDir, "bar-baz", "foo"), "first suite report");
+    const secondLoaded = expectPresent(loadSuiteReport(runsDir, "baz", "foo-bar"), "second suite report");
+
+    expect(firstLoaded.suite).toBe("bar-baz");
+    expect(secondLoaded.suite).toBe("baz");
+    const suiteDirs = fs.readdirSync(path.join(runsDir, "suites")).filter((entry) => entry !== "index.json");
+    expect(suiteDirs).toHaveLength(2);
   });
 });
 
@@ -195,7 +226,7 @@ describe("compareSuiteReports", () => {
         {
           report: makeReport("booking-api", "typescript-vitest", {
             scores: { deterministic: { quality: 88 }, overall: 88 },
-            findings: ["Verification failed"],
+            meta: { verifyPassed: false },
           }),
           runDir: "booking-new",
         },
@@ -509,8 +540,8 @@ describe("compareSuiteReports with epochs", () => {
               trial: entry.trial,
               variant: entry.variant,
               status: entry.statuses?.[i] ?? "completed",
+              verifyPassed: entry.verifies?.[i] ?? true,
             },
-            findings: entry.verifies?.[i] === false ? ["Verification failed"] : [],
           }),
           runDir: `${suiteRunId}-${entry.trial}-${entry.variant}-e${i}`,
         });

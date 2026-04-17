@@ -90,7 +90,9 @@ export interface JudgeResult {
 
 export type JudgeFailureReason = "timeout" | "crash" | "parse_error" | "empty_response";
 
-export type JudgeOutcome = { ok: true; result: JudgeResult } | { ok: false; reason: JudgeFailureReason };
+export type JudgeOutcome =
+  | { ok: true; result: JudgeResult }
+  | { ok: false; reason: JudgeFailureReason; stdout?: string };
 
 // -- Scoring -------------------------------------------------------------------
 
@@ -111,6 +113,7 @@ export interface EvalMeta {
   startedAt: string;
   durationMs: number;
   status: EvalRunStatus;
+  verifyPassed: boolean;
   suite?: string;
   suiteRunId?: string;
   epoch?: number;

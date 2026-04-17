@@ -5,7 +5,12 @@ vi.mock("node:child_process", () => ({
 }));
 
 import { execFileSync } from "node:child_process";
-import { _resetAiJailCache, buildSandboxedCommand, checkAiJail } from "../src/lib/eval/sandbox.js";
+import {
+  _resetAiJailCache,
+  assertSandboxAvailable,
+  buildSandboxedCommand,
+  checkAiJail,
+} from "../src/lib/eval/sandbox.js";
 
 beforeEach(() => {
   _resetAiJailCache();
@@ -96,5 +101,32 @@ describe("buildSandboxedCommand", () => {
     });
     expect(result.command).toBe("pi");
     expect(result.args).toEqual(["-p", "--mode", "json"]);
+  });
+});
+
+describe("assertSandboxAvailable", () => {
+  it("allows omitted sandbox configuration", () => {
+    expect(() => assertSandboxAvailable(undefined)).not.toThrow();
+  });
+
+  it("warns but does not throw for boolean sandbox fallback", () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("not found");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(() => assertSandboxAvailable(true)).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("throws when explicit sandbox options are requested without ai-jail", () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("not found");
+    });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(() => assertSandboxAvailable({ lockdown: true })).toThrow(
+      "ai-jail not found on PATH but explicit SandboxOptions were provided. Install ai-jail or pass sandbox: true to fall back to unsandboxed.",
+    );
   });
 });

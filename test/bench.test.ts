@@ -12,6 +12,7 @@ function makeReport(trial: string, variant: string, overall: number): EvalReport
       startedAt: "2026-01-01T00:00:00Z",
       durationMs: 30_000,
       status: "completed",
+      verifyPassed: true,
     },
     scores: {
       deterministic: { quality: overall, coverage: overall - 10 },

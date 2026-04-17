@@ -131,6 +131,54 @@ describe("parseSessionLines", () => {
   });
 
   describe("edge cases", () => {
+    it("matches tool results by toolCallId when the same tool is called multiple times", () => {
+      const session = parseSessionLines([
+        JSON.stringify({
+          type: "message_end",
+          timestamp: "2026-01-01T00:00:01.000Z",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "toolCall", id: "call-1", name: "bash", arguments: { command: "first" } },
+              { type: "toolCall", id: "call-2", name: "bash", arguments: { command: "second" } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: "message_end",
+          timestamp: "2026-01-01T00:00:02.000Z",
+          message: {
+            role: "toolResult",
+            toolCallId: "call-1",
+            toolName: "bash",
+            content: [{ type: "text", text: "first result" }],
+          },
+        }),
+        JSON.stringify({
+          type: "message_end",
+          timestamp: "2026-01-01T00:00:03.000Z",
+          message: {
+            role: "toolResult",
+            toolCallId: "call-2",
+            toolName: "bash",
+            content: [{ type: "text", text: "second result" }],
+          },
+        }),
+      ]);
+
+      expect(session.toolCalls).toHaveLength(2);
+      expect(session.toolCalls[0]).toMatchObject({
+        name: "bash",
+        arguments: { command: "first" },
+        resultText: "first result",
+      });
+      expect(session.toolCalls[1]).toMatchObject({
+        name: "bash",
+        arguments: { command: "second" },
+        resultText: "second result",
+      });
+    });
+
     it("handles empty input", () => {
       const session = parseSessionLines([]);
       expect(session.toolCalls).toHaveLength(0);

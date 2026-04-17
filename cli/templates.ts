@@ -341,6 +341,9 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
       } else {
         judgeFailure = judgeOutcome.reason;
         console.log(\`  Judge: failed (\${judgeFailure}), using deterministic scores only\`);
+        if (judgeOutcome.stdout) {
+          fs.writeFileSync(path.join(runDir, "judge.stdout.txt"), judgeOutcome.stdout);
+        }
       }
     }
   }
@@ -370,6 +373,7 @@ async function runTrial(trialName: string, variantName: string, opts: RunTrialOp
       startedAt: new Date(session.startTime).toISOString(),
       durationMs: session.endTime - session.startTime,
       status: result.status,
+      verifyPassed: verify.passed,
       ...(opts.suite ? { suite: opts.suite, suiteRunId: opts.suiteRunId } : {}),
       ...(opts.epoch ? { epoch: opts.epoch, totalEpochs: opts.totalEpochs } : {}),
     },

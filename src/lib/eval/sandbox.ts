@@ -25,6 +25,19 @@ export interface SandboxSpawnConfig {
   options?: SandboxOptions;
 }
 
+export function assertSandboxAvailable(sandbox?: boolean | SandboxOptions): void {
+  if (!sandbox) return;
+  if (sandbox === true) {
+    checkAiJail();
+    return;
+  }
+  if (!checkAiJail()) {
+    throw new Error(
+      "ai-jail not found on PATH but explicit SandboxOptions were provided. Install ai-jail or pass sandbox: true to fall back to unsandboxed.",
+    );
+  }
+}
+
 export function buildSandboxedCommand(
   command: string,
   args: string[],

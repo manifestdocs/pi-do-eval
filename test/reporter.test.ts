@@ -21,6 +21,7 @@ function makeReport(overrides?: Partial<EvalReport> & { scores?: Partial<EvalRep
       startedAt: "2026-01-01T00:00:00Z",
       durationMs: 30000,
       status: "completed",
+      verifyPassed: true,
     },
     scores: {
       deterministic: { quality: 80, coverage: 60 },

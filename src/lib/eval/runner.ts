@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { parseSessionLines } from "./parser.js";
 import { updateRunIndex } from "./reporter.js";
-import { buildSandboxedCommand } from "./sandbox.js";
+import { assertSandboxAvailable, buildSandboxedCommand } from "./sandbox.js";
 import type { EvalEvent, EvalMeta, EvalPlugin, EvalSession, SandboxOptions } from "./types.js";
 
 export interface LiveOptions {
@@ -113,6 +113,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
   }
 
   return new Promise<RunResult>((resolve) => {
+    assertSandboxAvailable(opts.sandbox);
     let command = "pi";
     let spawnArgs = args;
     if (opts.sandbox) {

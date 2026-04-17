@@ -7,6 +7,7 @@ interface SessionEntry {
     role: string;
     content?: ContentBlock[];
     toolName?: string;
+    toolCallId?: string;
     isError?: boolean;
     timestamp?: number;
     model?: string;
@@ -49,6 +50,7 @@ export function parseSessionLines(lines: string[], plugin?: EvalPlugin): EvalSes
   }
 
   const toolCalls: ToolCallRecord[] = [];
+  const toolCallsById = new Map<string, ToolCallRecord>();
   const fileWrites: FileWriteRecord[] = [];
   const pluginEvents: PluginEvent[] = [];
   let inputTokens = 0;
@@ -81,13 +83,17 @@ export function parseSessionLines(lines: string[], plugin?: EvalPlugin): EvalSes
     if (role === "assistant" && content) {
       for (const block of content) {
         if (block.type !== "toolCall" || !block.name) continue;
-        toolCalls.push({
+        const record: ToolCallRecord = {
           timestamp: ts,
           name: block.name,
           arguments: block.arguments ?? {},
           resultText: "",
           wasBlocked: false,
-        });
+        };
+        toolCalls.push(record);
+        if (block.id) {
+          toolCallsById.set(block.id, record);
+        }
 
         const filePath = (block.arguments?.path as string) ?? "";
         if ((block.name === "write" || block.name === "edit") && filePath) {
@@ -105,13 +111,23 @@ export function parseSessionLines(lines: string[], plugin?: EvalPlugin): EvalSes
     if (role === "toolResult" && content) {
       const text = extractText(content);
       const toolName = entry.message.toolName ?? "";
+      const toolCallId = entry.message.toolCallId;
 
-      for (let i = toolCalls.length - 1; i >= 0; i--) {
-        const call = toolCalls[i];
-        if (!call) continue;
-        if (call.name === toolName && !call.resultText) {
-          call.resultText = text;
-          break;
+      if (toolCallId) {
+        const matchedCall = toolCallsById.get(toolCallId);
+        if (matchedCall && !matchedCall.resultText) {
+          matchedCall.resultText = text;
+        }
+      }
+
+      if (!toolCallId || !toolCallsById.get(toolCallId)?.resultText) {
+        for (let i = toolCalls.length - 1; i >= 0; i--) {
+          const call = toolCalls[i];
+          if (!call) continue;
+          if (call.name === toolName && !call.resultText) {
+            call.resultText = text;
+            break;
+          }
         }
       }
 

@@ -132,12 +132,19 @@ function getSuitesDir(runsDir: string): string {
   return path.join(runsDir, SUITES_DIR_NAME);
 }
 
-function getSuiteDirName(suite: string, suiteRunId: string): string {
+function getLegacySuiteDirName(suite: string, suiteRunId: string): string {
   return `${suiteRunId}-${suite}`;
 }
 
+export function getSuiteDirName(suite: string, suiteRunId: string): string {
+  return `run=${encodeURIComponent(suiteRunId)}__suite=${encodeURIComponent(suite)}`;
+}
+
 function getSuiteReportPath(runsDir: string, suite: string, suiteRunId: string): string {
-  return path.join(getSuitesDir(runsDir), getSuiteDirName(suite, suiteRunId), SUITE_REPORT_FILE);
+  const suitesDir = getSuitesDir(runsDir);
+  const currentPath = path.join(suitesDir, getSuiteDirName(suite, suiteRunId), SUITE_REPORT_FILE);
+  if (fs.existsSync(currentPath)) return currentPath;
+  return path.join(suitesDir, getLegacySuiteDirName(suite, suiteRunId), SUITE_REPORT_FILE);
 }
 
 function readJsonFile<T>(filePath: string): T | undefined {
@@ -236,7 +243,7 @@ export function buildSuiteReportEntry(report: EvalReport, runDir: string): Suite
     runDir,
     status: report.meta.status,
     overall: report.scores.overall,
-    verifyPassed: !report.findings.includes("Verification failed"),
+    verifyPassed: report.meta.verifyPassed,
     deterministic: report.scores.deterministic,
     ...(report.scores.judge ? { judge: report.scores.judge } : {}),
     findings: [...report.findings],
@@ -414,7 +421,7 @@ function compareSuiteEntry(
           : belowMean
             ? `all epochs below previous mean (${Math.round(baselineAgg.overall.mean * 10) / 10})`
             : undefined;
-        findings.push(`Overall mean dropped by ${Math.abs(deltaOverall)} points` + (detail ? ` with ${detail}` : ""));
+        findings.push(`Overall mean dropped by ${Math.abs(deltaOverall)} points${detail ? ` with ${detail}` : ""}`);
       } else if (meanDrop > 1) {
         severity = "drift";
         findings.push(`Overall mean drifted by ${deltaOverall} points`);

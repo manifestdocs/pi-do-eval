@@ -1,102 +1,119 @@
-import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// parseJudgeResponse is not exported, so we test it indirectly via a module-level import.
-// We re-implement the extraction logic here to test the regex and parsing behavior.
-// The actual function lives in judge.ts — these tests verify the same logic.
-
-function parseJudgeResponse(output: string) {
-  const allMatches = output.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
-  const jsonMatch = allMatches?.at(-1);
-  if (!jsonMatch) return undefined;
-
-  try {
-    const parsed = JSON.parse(jsonMatch);
-    const scores: Record<string, number> = {};
-    const reasons: Record<string, string> = {};
-
-    for (const [key, value] of Object.entries(parsed)) {
-      if (key === "findings") continue;
-      if (typeof value === "number") scores[key] = value;
-      else if (typeof value === "string" && key.endsWith("_reason")) {
-        reasons[key.replace(/_reason$/, "")] = value;
-      }
-    }
-
-    if (Object.keys(scores).length === 0) return undefined;
-
-    return {
-      scores,
-      reasons,
-      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-    };
-  } catch {
-    return undefined;
-  }
+class FakeChildProcess extends EventEmitter {
+  stdout = new PassThrough();
+  stderr = new PassThrough();
+  kill = vi.fn();
 }
 
-describe("parseJudgeResponse", () => {
-  it("parses a clean JSON response", () => {
-    const input = '{"quality": 85, "quality_reason": "good code", "findings": ["minor typo"]}';
-    const result = parseJudgeResponse(input);
+let nextChild: FakeChildProcess | null = null;
 
-    expect(result).toEqual({
-      scores: { quality: 85 },
-      reasons: { quality: "good code" },
+vi.mock("node:child_process", () => ({
+  spawn: vi.fn(() => {
+    nextChild ??= new FakeChildProcess();
+    const child = nextChild;
+    nextChild = null;
+    return child;
+  }),
+}));
+
+import { finalizeJudgeOutcome, findBalancedJsonObjects, parseJudgeResponse, runJudge } from "../src/lib/eval/judge.js";
+
+beforeEach(() => {
+  nextChild = null;
+  vi.useRealTimers();
+});
+
+describe("findBalancedJsonObjects", () => {
+  it("extracts nested objects without breaking on braces inside strings", () => {
+    const input = [
+      'draft: {"ignored": true}',
+      "```json",
+      '{"quality": 91, "quality_reason": "brace } still in string", "metadata": {"nested": {"ok": true}}, "findings": ["minor"]}',
+      "```",
+    ].join("\n");
+
+    expect(findBalancedJsonObjects(input)).toEqual([
+      '{"ignored": true}',
+      '{"quality": 91, "quality_reason": "brace } still in string", "metadata": {"nested": {"ok": true}}, "findings": ["minor"]}',
+    ]);
+  });
+});
+
+describe("parseJudgeResponse", () => {
+  it("parses the last valid JSON object from noisy output", () => {
+    const input = [
+      'draft: {"version": 1}',
+      "```json",
+      '{"quality": 87, "quality_reason": "brace } inside string", "metadata": {"nested": true}, "findings": ["minor typo"]}',
+      "```",
+    ].join("\n");
+
+    expect(parseJudgeResponse(input)).toEqual({
+      scores: { quality: 87 },
+      reasons: { quality: "brace } inside string" },
       findings: ["minor typo"],
     });
   });
 
-  it("extracts JSON from surrounding prose", () => {
-    const input = 'Here is my evaluation:\n{"quality": 90, "findings": []}\nThat is all.';
-    const result = parseJudgeResponse(input);
+  it("returns undefined when no score fields are present", () => {
+    expect(parseJudgeResponse('{"metadata":{"nested":true},"findings":["x"]}')).toBeUndefined();
+  });
+});
 
-    expect(result?.scores).toEqual({ quality: 90 });
+describe("finalizeJudgeOutcome", () => {
+  it("returns a parsed result for valid assistant JSONL output", () => {
+    const output = [
+      '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"draft {\\"scratch\\":true}\\n{\\"quality\\":82,\\"quality_reason\\":\\"clear\\",\\"findings\\":[\\"ok\\"]}"}]}}',
+    ].join("\n");
+
+    expect(finalizeJudgeOutcome(output)).toEqual({
+      ok: true,
+      result: {
+        scores: { quality: 82 },
+        reasons: { quality: "clear" },
+        findings: ["ok"],
+      },
+    });
   });
 
-  it("picks the last JSON block when multiple are present", () => {
-    const input = 'Thinking: {"draft": true}\nFinal answer: {"quality": 75, "findings": []}';
-    const result = parseJudgeResponse(input);
+  it("preserves raw stdout on parse failures", () => {
+    const output = [
+      '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"not json"}]}}',
+    ].join("\n");
 
-    expect(result?.scores).toEqual({ quality: 75 });
+    expect(finalizeJudgeOutcome(output)).toEqual({
+      ok: false,
+      reason: "parse_error",
+      stdout: output,
+    });
   });
+});
 
-  it("returns undefined for non-JSON output", () => {
-    expect(parseJudgeResponse("no json here")).toBeUndefined();
-  });
+describe("runJudge", () => {
+  it("includes captured stdout when the judge times out", async () => {
+    vi.useFakeTimers();
+    const child = new FakeChildProcess();
+    nextChild = child;
 
-  it("returns undefined for empty string", () => {
-    expect(parseJudgeResponse("")).toBeUndefined();
-  });
+    const outcomePromise = runJudge({
+      workDir: "/tmp/work",
+      prompt: "Judge this",
+      timeoutMs: 1000,
+    });
 
-  it("handles response with no findings key", () => {
-    const input = '{"quality": 60, "quality_reason": "needs work"}';
-    const result = parseJudgeResponse(input);
+    child.stdout.write(
+      '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"partial output"}]}}\n',
+    );
+    await vi.advanceTimersByTimeAsync(1000);
 
-    expect(result?.scores).toEqual({ quality: 60 });
-    expect(result?.reasons).toEqual({ quality: "needs work" });
-    expect(result?.findings).toEqual([]);
-  });
-
-  it("ignores non-number non-reason fields", () => {
-    const input = '{"quality": 80, "metadata": {"nested": true}, "findings": []}';
-    const result = parseJudgeResponse(input);
-
-    expect(result?.scores).toEqual({ quality: 80 });
-    expect(result?.reasons).toEqual({});
-  });
-
-  it("rejects JSON with no score fields", () => {
-    const input = '{"metadata": {"nested": true}, "findings": ["something"]}';
-    expect(parseJudgeResponse(input)).toBeUndefined();
-  });
-
-  it("treats stray numeric fields as scores if present", () => {
-    // This is acceptable — the raw stdout fallback that would surface
-    // session metadata like {"version":3} has been removed from runJudge.
-    // If the assistant text itself contains stray numerics, parsing them
-    // as scores is a reasonable best-effort.
-    const input = '{"version": 3}';
-    const result = parseJudgeResponse(input);
-    expect(result?.scores).toEqual({ version: 3 });
+    await expect(outcomePromise).resolves.toEqual({
+      ok: false,
+      reason: "timeout",
+      stdout: '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"partial output"}]}}\n',
+    });
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
   });
 });

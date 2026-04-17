@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { buildSandboxedCommand } from "./sandbox.js";
+import { assertSandboxAvailable, buildSandboxedCommand } from "./sandbox.js";
 import type { JudgeOutcome, JudgeResult, SandboxOptions } from "./types.js";
 
 export interface JudgeOptions {
@@ -12,36 +12,104 @@ export interface JudgeOptions {
   sandbox?: boolean | SandboxOptions;
 }
 
-function parseJudgeResponse(output: string): JudgeResult | undefined {
-  // Match the last JSON object in the output (non-greedy would match the first/smallest;
-  // we want the last one since the judge's final answer typically comes at the end)
-  const allMatches = output.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
-  const jsonMatch = allMatches?.at(-1);
-  if (!jsonMatch) return undefined;
+export function findBalancedJsonObjects(output: string): string[] {
+  const matches: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
 
-  try {
-    const parsed = JSON.parse(jsonMatch);
-    const scores: Record<string, number> = {};
-    const reasons: Record<string, string> = {};
-
-    for (const [key, value] of Object.entries(parsed)) {
-      if (key === "findings") continue;
-      if (typeof value === "number") scores[key] = value;
-      else if (typeof value === "string" && key.endsWith("_reason")) {
-        reasons[key.replace(/_reason$/, "")] = value;
+  for (let i = 0; i < output.length; i++) {
+    const char = output[i];
+    if (start === -1) {
+      if (char === "{") {
+        start = i;
+        depth = 1;
+        inString = false;
+        escaped = false;
       }
+      continue;
     }
 
-    if (Object.keys(scores).length === 0) return undefined;
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
 
-    return {
-      scores,
-      reasons,
-      findings: Array.isArray(parsed.findings) ? parsed.findings : [],
-    };
-  } catch {
-    return undefined;
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        matches.push(output.slice(start, i + 1));
+        start = -1;
+      }
+    }
   }
+
+  return matches;
+}
+
+export function parseJudgeResponse(output: string): JudgeResult | undefined {
+  const candidates = findBalancedJsonObjects(output);
+
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    const candidate = candidates[i];
+    if (!candidate) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      const scores: Record<string, number> = {};
+      const reasons: Record<string, string> = {};
+
+      for (const [key, value] of Object.entries(parsed)) {
+        if (key === "findings") continue;
+        if (typeof value === "number") scores[key] = value;
+        else if (typeof value === "string" && key.endsWith("_reason")) {
+          reasons[key.replace(/_reason$/, "")] = value;
+        }
+      }
+
+      if (Object.keys(scores).length === 0) continue;
+
+      return {
+        scores,
+        reasons,
+        findings: Array.isArray(parsed.findings)
+          ? parsed.findings.filter((finding: unknown): finding is string => typeof finding === "string")
+          : [],
+      };
+    } catch {
+      // Try the next-most-recent candidate.
+    }
+  }
+
+  return undefined;
+}
+
+export function finalizeJudgeOutcome(stdout: string): JudgeOutcome {
+  const assistantText = extractAssistantText(stdout);
+  if (!assistantText) {
+    return { ok: false, reason: stdout.trim() ? "parse_error" : "empty_response", ...(stdout ? { stdout } : {}) };
+  }
+
+  const result = parseJudgeResponse(assistantText);
+  if (result) {
+    return { ok: true, result };
+  }
+
+  return { ok: false, reason: "parse_error", ...(stdout ? { stdout } : {}) };
 }
 
 export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
@@ -54,6 +122,7 @@ export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
   const timeout = opts.timeoutMs ?? 120_000;
 
   return new Promise<JudgeOutcome>((resolve) => {
+    assertSandboxAvailable(opts.sandbox);
     let command = "pi";
     let spawnArgs = args;
     if (opts.sandbox) {
@@ -85,25 +154,13 @@ export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
       stdout += chunk.toString();
     });
 
-    proc.on("close", () => {
-      const assistantText = extractAssistantText(stdout);
-      if (!assistantText) {
-        finish({ ok: false, reason: stdout.trim() ? "parse_error" : "empty_response" });
-        return;
-      }
-      const result = parseJudgeResponse(assistantText);
-      if (result) {
-        finish({ ok: true, result });
-      } else {
-        finish({ ok: false, reason: "parse_error" });
-      }
-    });
+    proc.on("close", () => finish(finalizeJudgeOutcome(stdout)));
 
-    proc.on("error", () => finish({ ok: false, reason: "crash" }));
+    proc.on("error", () => finish({ ok: false, reason: "crash", ...(stdout ? { stdout } : {}) }));
 
     const timer = setTimeout(() => {
       proc.kill("SIGTERM");
-      finish({ ok: false, reason: "timeout" });
+      finish({ ok: false, reason: "timeout", ...(stdout ? { stdout } : {}) });
     }, timeout);
   });
 }

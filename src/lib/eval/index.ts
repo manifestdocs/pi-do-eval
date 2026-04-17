@@ -1,5 +1,11 @@
 export { createBenchReport, printBenchComparison, updateBenchIndex, writeBenchReport } from "./bench.js";
-export { type JudgeOptions, runJudge } from "./judge.js";
+export {
+  finalizeJudgeOutcome,
+  findBalancedJsonObjects,
+  type JudgeOptions,
+  parseJudgeResponse,
+  runJudge,
+} from "./judge.js";
 export { parseSessionLines } from "./parser.js";
 export {
   formatMarkdown,
@@ -10,7 +16,7 @@ export {
   writeReport,
 } from "./reporter.js";
 export { type LiveOptions, type RunOptions, type RunResult, runEval } from "./runner.js";
-export { buildSandboxedCommand, checkAiJail } from "./sandbox.js";
+export { assertSandboxAvailable, buildSandboxedCommand, checkAiJail } from "./sandbox.js";
 export { scoreSession } from "./scorer.js";
 export {
   aggregateEpochEntries,
@@ -18,6 +24,7 @@ export {
   compareSuiteReports,
   computeStats,
   createSuiteReport,
+  getSuiteDirName,
   listSuiteModels,
   loadLatestSuiteReport,
   loadPreviousSuiteReport,
@@ -45,10 +52,13 @@ export type {
   JudgeOutcome,
   JudgeResult,
   JudgeScoreConfig,
+  LauncherConfig,
+  LauncherTrial,
   PluginEvent,
   PluginScoreResult,
   RegressionSeverity,
   RunIndexEntry,
+  RunRequest,
   SandboxOptions,
   SuiteComparison,
   SuiteComparisonEntry,
@@ -57,9 +67,6 @@ export type {
   SuiteReport,
   SuiteReportEntry,
   SuiteReportSummary,
-  LauncherConfig,
-  LauncherTrial,
-  RunRequest,
   ToolCallRecord,
   VerifyResult,
 } from "./types.js";
