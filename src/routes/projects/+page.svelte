@@ -1,16 +1,12 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import AddProjectModal from "$lib/components/AddProjectModal.svelte";
 	import ProjectCard from "$lib/components/ProjectCard.svelte";
-	import { goto } from "$app/navigation";
 	import { projects, projectsLoading } from "../../stores/projects.js";
 	import {
 		allProjectStats,
 		loadAllProjectStats,
 		projectStatsLoading,
 	} from "../../stores/project-stats.js";
-
-	let addOpen = $state(false);
 
 	onMount(() => {
 		void loadAllProjectStats();
@@ -19,10 +15,6 @@
 	let sortedProjects = $derived(
 		[...$projects].sort((a, b) => a.name.localeCompare(b.name)),
 	);
-
-	function handleAdded(id: string) {
-		void goto(`/projects/${encodeURIComponent(id)}/runs`);
-	}
 </script>
 
 <main class="mx-auto max-w-5xl overflow-y-auto p-6">
@@ -33,13 +25,12 @@
 				Every project registered with pi-do-eval.
 			</p>
 		</div>
-		<button
-			type="button"
+		<a
+			href="/projects/new"
 			class="rounded bg-accent-blue px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
-			onclick={() => (addOpen = true)}
 		>
 			New Project
-		</button>
+		</a>
 	</div>
 
 	{#if $projectsLoading && $projects.length === 0}
@@ -60,5 +51,3 @@
 		</div>
 	{/if}
 </main>
-
-<AddProjectModal bind:open={addOpen} onadded={handleAdded} />

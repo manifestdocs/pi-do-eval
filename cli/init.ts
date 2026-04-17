@@ -7,11 +7,14 @@ interface ExtensionInfo {
   extensionPath: string;
 }
 
+export class InitError extends Error {}
+
 function detectExtension(cwd: string): ExtensionInfo {
   const pkgPath = path.join(cwd, "package.json");
   if (!fs.existsSync(pkgPath)) {
-    console.error("No package.json found. Run this from the root of a Pi extension repo.");
-    process.exit(1);
+    throw new InitError(
+      "No package.json found. Run this from the root of a Pi extension repo.",
+    );
   }
 
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -43,12 +46,18 @@ function writeFile(filePath: string, content: string) {
   fs.writeFileSync(filePath, content);
 }
 
-export async function runInit(cwd = process.cwd()) {
+export interface InitResult {
+  evalDir: string;
+  extensionName: string;
+}
+
+export async function initEvalDir(cwd: string): Promise<InitResult> {
   const evalDir = path.join(cwd, "eval");
 
   if (fs.existsSync(evalDir) && fs.readdirSync(evalDir).length > 0) {
-    console.error("eval/ directory already exists. Remove it first or run from a different directory.");
-    process.exit(1);
+    throw new InitError(
+      "eval/ directory already exists. Remove it first or run from a different directory.",
+    );
   }
 
   const ext = detectExtension(cwd);
@@ -69,12 +78,25 @@ export async function runInit(cwd = process.cwd()) {
   writeFile(path.join(evalDir, "trials", "example", "config.ts"), templates.trialConfig(ext.name));
   writeFile(path.join(evalDir, "trials", "example", "task.md"), templates.taskMd());
 
-  console.log(`Created eval harness in eval/`);
-  console.log("");
-  console.log("Next steps:");
-  console.log("  cd eval");
-  console.log("  npm install");
-  console.log(`  # Edit plugins/${ext.name}.ts to implement scoring`);
-  console.log("  # Edit trials/example/task.md with a real task");
-  console.log("  npm run eval -- run --trial example --variant default");
+  return { evalDir, extensionName: ext.name };
+}
+
+export async function runInit(cwd = process.cwd()) {
+  try {
+    const result = await initEvalDir(cwd);
+    console.log(`Created eval harness in eval/`);
+    console.log("");
+    console.log("Next steps:");
+    console.log("  cd eval");
+    console.log("  npm install");
+    console.log(`  # Edit plugins/${result.extensionName}.ts to implement scoring`);
+    console.log("  # Edit trials/example/task.md with a real task");
+    console.log("  npm run eval -- run --trial example --variant default");
+  } catch (error) {
+    if (error instanceof InitError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
 }

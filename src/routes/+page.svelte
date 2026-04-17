@@ -1,16 +1,12 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import AddProjectModal from "$lib/components/AddProjectModal.svelte";
 	import ProjectCard from "$lib/components/ProjectCard.svelte";
-	import { goto } from "$app/navigation";
 	import { projects, projectsLoading } from "../stores/projects.js";
 	import {
 		allProjectStats,
 		loadAllProjectStats,
 		projectStatsLoading,
 	} from "../stores/project-stats.js";
-
-	let addOpen = $state(false);
 
 	onMount(() => {
 		void loadAllProjectStats();
@@ -33,10 +29,6 @@
 			return bTime - aTime;
 		}),
 	);
-
-	function handleAdded(id: string) {
-		void goto(`/projects/${encodeURIComponent(id)}/runs`);
-	}
 </script>
 
 <main class="mx-auto max-w-5xl overflow-y-auto p-6">
@@ -47,13 +39,12 @@
 				Eval projects and their latest suite run at a glance.
 			</p>
 		</div>
-		<button
-			type="button"
+		<a
+			href="/projects/new"
 			class="rounded bg-accent-blue px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
-			onclick={() => (addOpen = true)}
 		>
 			New Project
-		</button>
+		</a>
 	</div>
 
 	{#if $projectsLoading && $projects.length === 0}
@@ -64,16 +55,15 @@
 		>
 			<h2 class="text-[16px] font-semibold text-foreground">Set up your first project</h2>
 			<p class="mx-auto mt-2 max-w-md text-[12px] text-foreground-muted">
-				Point pi-do-eval at a repo that contains an <code>eval/</code> directory. You'll be able to
-				run trials and suites, watch live progress, and track regressions from here.
+				Point pi-do-eval at a repo with an <code>eval/</code> directory, or scaffold one into a
+				repo that doesn't have one yet.
 			</p>
-			<button
-				type="button"
-				class="mt-4 rounded bg-accent-blue px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
-				onclick={() => (addOpen = true)}
+			<a
+				href="/projects/new"
+				class="mt-4 inline-block rounded bg-accent-blue px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
 			>
-				Add Project
-			</button>
+				Set up first project
+			</a>
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -87,5 +77,3 @@
 		</div>
 	{/if}
 </main>
-
-<AddProjectModal bind:open={addOpen} onadded={handleAdded} />
