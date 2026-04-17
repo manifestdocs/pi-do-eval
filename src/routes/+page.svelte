@@ -1,150 +1,91 @@
 <script lang="ts">
+	import { onMount } from "svelte";
+	import AddProjectModal from "$lib/components/AddProjectModal.svelte";
+	import ProjectCard from "$lib/components/ProjectCard.svelte";
+	import { goto } from "$app/navigation";
+	import { projects, projectsLoading } from "../stores/projects.js";
 	import {
-		selectedSuiteName,
-		selectedSuiteRunId,
-		selectedRunDir,
-		selectedBenchId,
-	} from "../stores/selection.js";
-	import {
-		runs,
-		benchIndex,
-		currentSuiteReport,
-		currentRunReport,
-		currentBenchReport,
-		reportLoading,
-		reportError,
-		loadSuiteReport,
-		loadRunReport,
-		loadBenchReport,
-		sidebarItems,
-	} from "../stores/runs.js";
-	import SuiteOverview from "$lib/components/SuiteOverview.svelte";
-	import SuiteRunDetail from "$lib/components/SuiteRunDetail.svelte";
-	import RunDetail from "$lib/components/RunDetail.svelte";
-	import BenchDetail from "$lib/components/BenchDetail.svelte";
-	import ConfigView from "$lib/components/ConfigView.svelte";
-	import PendingSelectionView from "$lib/components/PendingSelectionView.svelte";
-	import { launcherConfig } from "../stores/launcher.js";
-	import { pendingLaunch } from "../stores/selection.js";
-	import { activeProject, projects, projectsLoading } from "../stores/projects.js";
+		allProjectStats,
+		loadAllProjectStats,
+		projectStatsLoading,
+	} from "../stores/project-stats.js";
 
-	// React to selection changes
+	let addOpen = $state(false);
+
+	onMount(() => {
+		void loadAllProjectStats();
+	});
+
+	// Reload stats when the projects list changes (e.g. after adding a project)
+	let lastProjectIds = "";
 	$effect(() => {
-		const suiteRunId = $selectedSuiteRunId;
-		const suiteName = $selectedSuiteName;
-		if (suiteRunId && suiteName) {
-			loadSuiteReport(suiteName, suiteRunId);
+		const ids = $projects.map((project) => project.id).join(",");
+		if (ids && ids !== lastProjectIds) {
+			lastProjectIds = ids;
+			void loadAllProjectStats();
 		}
 	});
 
-	$effect(() => {
-		const dir = $selectedRunDir;
-		if (dir) {
-			loadRunReport(dir);
-		}
-	});
-
-	$effect(() => {
-		const benchId = $selectedBenchId;
-		if (benchId) {
-			loadBenchReport(benchId);
-		}
-	});
-
-	let selectedRunEntry = $derived($runs.find((run) => run.dir === $selectedRunDir) ?? null);
-
-	let selectedSuiteRunEntry = $derived.by(() => {
-		const suiteName = $selectedSuiteName;
-		const suiteRunId = $selectedSuiteRunId;
-		if (!suiteName || !suiteRunId) return null;
-		return (
-			$sidebarItems.find((suite) => suite.suite === suiteName)?.suiteRuns.find(
-				(run) => run.suiteRunId === suiteRunId,
-			) ?? null
-		);
-	});
-
-	let pendingView = $derived.by(() => {
-		if ($pendingLaunch) {
-			const target =
-				$pendingLaunch.type === "trial"
-					? `${$pendingLaunch.trial}/${$pendingLaunch.variant}`
-					: $pendingLaunch.type === "suite"
-						? `Suite: ${$pendingLaunch.suite}`
-						: `Bench: ${$pendingLaunch.suite}`;
-			return {
-				eyebrow: "Launching",
-				title: target,
-				description: $pendingLaunch.modelLabel
-					? `Starting with ${$pendingLaunch.modelLabel}. The run view will attach as soon as the first files appear.`
-					: "Starting run. The run view will attach as soon as the first files appear.",
-				status: "Waiting for first run data",
-			};
-		}
-
-		if (selectedRunEntry?.status === "running") {
-			return {
-				eyebrow: "Live Run",
-				title: `${selectedRunEntry.trial}/${selectedRunEntry.variant}`,
-				description: selectedRunEntry.workerModel
-					? `Running with ${selectedRunEntry.workerModel}`
-					: "Run is currently in progress.",
-				status: "Collecting live data",
-				durationMs: selectedRunEntry.durationMs,
-			};
-		}
-
-		if (selectedSuiteRunEntry?.status === "running" && $selectedSuiteName) {
-			return {
-				eyebrow: "Live Suite",
-				title: `Suite: ${$selectedSuiteName}`,
-				description: selectedSuiteRunEntry.workerModel
-					? `Running with ${selectedSuiteRunEntry.workerModel}`
-					: `Suite run ${selectedSuiteRunEntry.suiteRunId} is in progress.`,
-				status: "Waiting for suite report",
-				durationMs: selectedSuiteRunEntry.durationMs,
-				secondary: `${selectedSuiteRunEntry.finishedRuns}/${selectedSuiteRunEntry.totalRuns} runs finished`,
-			};
-		}
-
-		return null;
-	});
-
-	let hasSelection = $derived(
-		$selectedSuiteName != null ||
-			$selectedSuiteRunId != null ||
-			$selectedRunDir != null ||
-			$selectedBenchId != null ||
-			$pendingLaunch != null,
+	let sortedProjects = $derived(
+		[...$projects].sort((a, b) => {
+			const aTime = new Date(a.lastSelectedAt || a.updatedAt).getTime();
+			const bTime = new Date(b.lastSelectedAt || b.updatedAt).getTime();
+			return bTime - aTime;
+		}),
 	);
+
+	function handleAdded(id: string) {
+		void goto(`/projects/${encodeURIComponent(id)}/runs`);
+	}
 </script>
 
-{#if $reportLoading}
-	<div class="flex items-center justify-center h-64 text-foreground-muted">Loading...</div>
-{:else if $selectedRunDir && $currentRunReport}
-	<RunDetail report={$currentRunReport} />
-{:else if $selectedBenchId && $currentBenchReport}
-	<BenchDetail report={$currentBenchReport} />
-{:else if $selectedSuiteRunId && $currentSuiteReport}
-	<SuiteRunDetail report={$currentSuiteReport} />
-{:else if pendingView}
-	<PendingSelectionView {...pendingView} />
-{:else if !$projectsLoading && $projects.length === 0}
-	<div class="flex items-center justify-center h-full text-foreground-muted">
-		Add a project from the sidebar to browse eval runs.
+<main class="mx-auto max-w-5xl overflow-y-auto p-6">
+	<div class="mb-6 flex items-end justify-between">
+		<div>
+			<h1 class="text-[20px] font-semibold text-foreground">Dashboard</h1>
+			<p class="mt-1 text-[12px] text-foreground-muted">
+				Eval projects and their latest suite run at a glance.
+			</p>
+		</div>
+		<button
+			type="button"
+			class="rounded bg-accent-blue px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
+			onclick={() => (addOpen = true)}
+		>
+			New Project
+		</button>
 	</div>
-{:else if $reportError}
-	<div class="flex items-center justify-center h-64 text-accent-red">{$reportError}</div>
-{:else if $selectedSuiteName}
-	<SuiteOverview suiteName={$selectedSuiteName} />
-{:else if !hasSelection && $activeProject && $launcherConfig}
-	<ConfigView config={$launcherConfig} />
-{:else if !hasSelection && $activeProject && $sidebarItems.length === 0 && $benchIndex.length === 0}
-	<div class="flex items-center justify-center h-full text-foreground-muted">
-		No runs yet for {$activeProject.name}.
-	</div>
-{:else if !hasSelection}
-	<div class="flex items-center justify-center h-full text-foreground-muted">
-		Select a suite or run from the sidebar.
-	</div>
-{/if}
+
+	{#if $projectsLoading && $projects.length === 0}
+		<div class="flex items-center justify-center py-16 text-foreground-muted">Loading projects…</div>
+	{:else if $projects.length === 0}
+		<div
+			class="rounded border border-dashed border-border-default bg-background-subtle px-6 py-12 text-center"
+		>
+			<h2 class="text-[16px] font-semibold text-foreground">Set up your first project</h2>
+			<p class="mx-auto mt-2 max-w-md text-[12px] text-foreground-muted">
+				Point pi-do-eval at a repo that contains an <code>eval/</code> directory. You'll be able to
+				run trials and suites, watch live progress, and track regressions from here.
+			</p>
+			<button
+				type="button"
+				class="mt-4 rounded bg-accent-blue px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-background transition-colors hover:brightness-110"
+				onclick={() => (addOpen = true)}
+			>
+				Add Project
+			</button>
+		</div>
+	{:else}
+		<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+			{#each sortedProjects as project (project.id)}
+				<ProjectCard
+					{project}
+					stats={$allProjectStats[project.id] ?? null}
+					loading={$projectStatsLoading[project.id] ?? false}
+				/>
+			{/each}
+		</div>
+	{/if}
+</main>
+
+<AddProjectModal bind:open={addOpen} onadded={handleAdded} />

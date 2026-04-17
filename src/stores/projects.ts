@@ -41,7 +41,8 @@ export async function loadProjects(): Promise<void> {
   }
 }
 
-export async function addProject(projectPath: string): Promise<void> {
+export async function addProject(projectPath: string): Promise<string | null> {
+  let newProjectId: string | null = null;
   await withProjectMutation(async () => {
     const resp = await fetch("/api/projects", {
       method: "POST",
@@ -54,8 +55,11 @@ export async function addProject(projectPath: string): Promise<void> {
       throw new Error(payload?.error ?? "Failed to add project");
     }
 
-    applyRegistry((await resp.json()) as ProjectRegistryResponse);
+    const registry = (await resp.json()) as ProjectRegistryResponse;
+    newProjectId = registry.activeProjectId;
+    applyRegistry(registry);
   });
+  return newProjectId;
 }
 
 export async function selectActiveProject(projectId: string): Promise<void> {
