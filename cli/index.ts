@@ -2,15 +2,15 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { runInit } from "./init.js";
 import {
   addOrUpdateProject,
   loadProjectRegistry,
+  type RegisteredProject,
   removeProject,
   resolveProjectIdentifier,
-  type RegisteredProject,
   setActiveProject,
 } from "../src/lib/server/projects.js";
+import { runInit } from "./init.js";
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
@@ -96,11 +96,10 @@ async function handleProjectCommand(projectArgs: string[]) {
   }
 
   if (subcommand === "remove") {
+    const activeProjectId = loadProjectRegistry().activeProjectId;
     const target =
       (identifier && resolveProjectIdentifier(identifier)) ||
-      (loadProjectRegistry().activeProjectId
-        ? resolveProjectIdentifier(loadProjectRegistry().activeProjectId!)
-        : null);
+      (activeProjectId ? resolveProjectIdentifier(activeProjectId) : null);
 
     if (!target) {
       console.error("No matching project found.");
@@ -182,7 +181,7 @@ function startUiDevServer(host: string, port: number) {
 }
 
 function readOption(values: string[], optionName: string): string | null {
-  const index = values.findIndex((value) => value === optionName);
+  const index = values.indexOf(optionName);
   if (index === -1) return null;
   return values[index + 1] ?? null;
 }
