@@ -6,3 +6,4 @@ CLAUDE.md
 .svelte-kit/
 build/
 bun.lock
+docs/
