@@ -3,40 +3,39 @@ import { projectWatchers } from "$lib/server/runtime.js";
 import type { RequestHandler } from "./$types.js";
 
 export const GET: RequestHandler = ({ params }) => {
-	const project = getRegisteredProject(params.projectId);
-	if (!project) {
-		return new Response("Project not found", { status: 404 });
-	}
+  const project = getRegisteredProject(params.projectId);
+  if (!project) {
+    return new Response("Project not found", { status: 404 });
+  }
 
-	const stream = new ReadableStream({
-		start(controller) {
-			const encoder = new TextEncoder();
-			let unsubscribe: (() => void) | null = null;
-			unsubscribe = projectWatchers.subscribe(project.id, (event) => {
-				try {
-					controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-				} catch {
-					unsubscribe?.();
-				}
-			});
+  let unsubscribe: (() => void) | null = null;
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      unsubscribe = projectWatchers.subscribe(project.id, (event) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          unsubscribe?.();
+          unsubscribe = null;
+        }
+      });
 
-			if (!unsubscribe) {
-				controller.close();
-				return;
-			}
+      if (!unsubscribe) {
+        controller.close();
+      }
+    },
+    cancel() {
+      unsubscribe?.();
+      unsubscribe = null;
+    },
+  });
 
-			return () => unsubscribe();
-		},
-		cancel() {
-			// Cleanup handled by the unsubscribe returned from start().
-		},
-	});
-
-	return new Response(stream, {
-		headers: {
-			"Content-Type": "text/event-stream",
-			"Cache-Control": "no-cache",
-			Connection: "keep-alive",
-		},
-	});
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 };

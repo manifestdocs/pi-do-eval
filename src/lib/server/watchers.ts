@@ -1,54 +1,59 @@
 import { getRegisteredProject, listRegisteredProjects, type RegisteredProject } from "./projects.js";
-import { RunsWatcher, type EventEmitter } from "./watcher.js";
+import { type EventEmitter, RunsWatcher } from "./watcher.js";
 
 export class ProjectWatcherCoordinator {
-	private watchers = new Map<string, RunsWatcher>();
+  private watchers = new Map<string, RunsWatcher>();
 
-	syncProjects(projects: RegisteredProject[]): void {
-		const activeIds = new Set(projects.map((project) => project.id));
+  syncProjects(projects: RegisteredProject[]): void {
+    const activeIds = new Set(projects.map((project) => project.id));
 
-		for (const project of projects) {
-			if (!this.watchers.has(project.id)) {
-				const watcher = new RunsWatcher(project.evalDir);
-				watcher.start();
-				this.watchers.set(project.id, watcher);
-			}
-		}
+    for (const project of projects) {
+      if (!this.watchers.has(project.id)) {
+        const watcher = new RunsWatcher(project.evalDir);
+        watcher.start();
+        this.watchers.set(project.id, watcher);
+      }
+    }
 
-		for (const [projectId, watcher] of this.watchers) {
-			if (!activeIds.has(projectId)) {
-				watcher.stop();
-				this.watchers.delete(projectId);
-			}
-		}
-	}
+    for (const [projectId, watcher] of this.watchers) {
+      if (!activeIds.has(projectId)) {
+        watcher.stop();
+        this.watchers.delete(projectId);
+      }
+    }
+  }
 
-	syncFromRegistry(): void {
-		this.syncProjects(listRegisteredProjects());
-	}
+  syncFromRegistry(): void {
+    this.syncProjects(listRegisteredProjects());
+  }
 
-	subscribe(projectId: string, listener: EventEmitter): (() => void) | null {
-		const watcher = this.getWatcher(projectId);
-		return watcher ? watcher.subscribe(listener) : null;
-	}
+  subscribe(projectId: string, listener: EventEmitter): (() => void) | null {
+    const watcher = this.getWatcher(projectId);
+    return watcher ? watcher.subscribe(listener) : null;
+  }
 
-	stopAll(): void {
-		for (const watcher of this.watchers.values()) {
-			watcher.stop();
-		}
-		this.watchers.clear();
-	}
+  getListenerCount(projectId: string): number {
+    const watcher = this.watchers.get(projectId);
+    return watcher?.getListenerCount() ?? 0;
+  }
 
-	private getWatcher(projectId: string): RunsWatcher | null {
-		const existing = this.watchers.get(projectId);
-		if (existing) return existing;
+  stopAll(): void {
+    for (const watcher of this.watchers.values()) {
+      watcher.stop();
+    }
+    this.watchers.clear();
+  }
 
-		const project = getRegisteredProject(projectId);
-		if (!project) return null;
+  private getWatcher(projectId: string): RunsWatcher | null {
+    const existing = this.watchers.get(projectId);
+    if (existing) return existing;
 
-		const watcher = new RunsWatcher(project.evalDir);
-		watcher.start();
-		this.watchers.set(projectId, watcher);
-		return watcher;
-	}
+    const project = getRegisteredProject(projectId);
+    if (!project) return null;
+
+    const watcher = new RunsWatcher(project.evalDir);
+    watcher.start();
+    this.watchers.set(projectId, watcher);
+    return watcher;
+  }
 }
