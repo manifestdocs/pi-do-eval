@@ -108,10 +108,10 @@
 <main class="mx-auto max-w-2xl overflow-y-auto p-6">
 	<div class="mb-5">
 		<a
-			href="/projects"
+			href="/"
 			class="text-[11px] uppercase tracking-wider text-foreground-muted hover:text-foreground"
 		>
-			← Projects
+			← Back
 		</a>
 		<h1 class="mt-2 text-[20px] font-semibold text-foreground">New Project</h1>
 		<p class="mt-1 text-[12px] text-foreground-muted">
@@ -217,7 +217,7 @@
 					</button>
 				{/if}
 				<a
-					href="/projects"
+					href="/"
 					class="rounded border border-border-default px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-foreground-subtle hover:text-foreground"
 				>
 					Cancel

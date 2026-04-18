@@ -69,7 +69,7 @@
 	<div class="flex items-center justify-center h-full text-foreground-muted">Loading project…</div>
 {:else if !knownProject}
 	<div class="flex items-center justify-center h-full text-foreground-muted">
-		Project not found. <a href="/projects" class="ml-1 underline">Back to projects</a>
+		Project not found. <a href="/" class="ml-1 underline">Back to dashboard</a>
 	</div>
 {:else}
 	<div class="flex h-full flex-col">
