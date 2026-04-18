@@ -7,7 +7,6 @@
 		activeProjectId,
 		projects,
 		projectsLoading,
-		removeProject,
 		selectActiveProject,
 	} from "../../../stores/projects.js";
 	import {
@@ -23,7 +22,6 @@
 
 	let routeProjectId = $derived(page.params.projectId);
 	let knownProject = $derived($projects.find((project) => project.id === routeProjectId) ?? null);
-	let confirmRemove = $state(false);
 
 	$effect(() => {
 		const projectId = routeProjectId;
@@ -65,12 +63,6 @@
 		};
 	});
 
-	async function doRemove() {
-		if (!knownProject) return;
-		await removeProject(knownProject.id);
-		confirmRemove = false;
-		void goto("/projects");
-	}
 </script>
 
 {#if $projectsLoading}
@@ -88,37 +80,8 @@
 					{knownProject.evalDir}
 				</p>
 			</div>
-			<div class="flex flex-wrap items-center gap-3 px-5 py-3">
+			<div class="flex items-center px-5 py-3">
 				<Launcher />
-				<div class="ml-auto">
-					{#if confirmRemove}
-						<div class="flex items-center gap-2 text-[11px] text-foreground-muted">
-							<span>Remove?</span>
-							<button
-								type="button"
-								class="rounded border border-accent-red px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-red transition-colors hover:bg-accent-red hover:text-background"
-								onclick={() => void doRemove()}
-							>
-								Confirm
-							</button>
-							<button
-								type="button"
-								class="rounded border border-border-default px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted hover:text-foreground"
-								onclick={() => (confirmRemove = false)}
-							>
-								Cancel
-							</button>
-						</div>
-					{:else}
-						<button
-							type="button"
-							class="rounded border border-border-default px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-foreground-subtle hover:text-foreground"
-							onclick={() => (confirmRemove = true)}
-						>
-							Remove
-						</button>
-					{/if}
-				</div>
 			</div>
 		</header>
 
