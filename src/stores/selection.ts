@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { RunRequest } from "$eval/types.js";
+import type { RunIndexEntry, RunRequest } from "$eval/types.js";
 
 export const selectedSuiteName = writable<string | null>(null);
 export const selectedSuiteRunId = writable<string | null>(null);
@@ -96,4 +96,20 @@ export function toggleSuiteRun(id: string): void {
     else s.add(id);
     return s;
   });
+}
+
+export function focusRun(run: RunIndexEntry): void {
+  if (run.suite) {
+    expandedSuites.update((s) => {
+      s.add(run.suite as string);
+      return s;
+    });
+  }
+  if (run.suiteRunId) {
+    expandedRuns.update((s) => {
+      s.add(run.suiteRunId as string);
+      return s;
+    });
+  }
+  selectRun(run.dir);
 }

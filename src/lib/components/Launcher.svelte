@@ -2,15 +2,18 @@
 	import { onMount } from "svelte";
 	import type { LauncherConfig, RunRequest } from "$eval/types.js";
 	import { launcherConfig } from "../../stores/launcher.js";
-	import { resetCurrentReports } from "../../stores/runs.js";
-	import { clearPendingLaunch } from "../../stores/selection.js";
+	import { resetCurrentReports, runs } from "../../stores/runs.js";
+	import { clearPendingLaunch, pendingLaunch } from "../../stores/selection.js";
 	import { setAutoSelect } from "../../stores/sse.js";
 	import { activeProjectId, projectApiPath } from "../../stores/projects.js";
 	import { normalizeLauncherSelection } from "./launcher-state.js";
+	import RunProgress from "./RunProgress.svelte";
 
 	let { onlaunched }: { onlaunched?: () => void } = $props();
 
 	let config = $derived($launcherConfig);
+	let hasActiveRun = $derived($runs.some((run) => run.status === "running"));
+	let isRunning = $derived(hasActiveRun || $pendingLaunch != null);
 	let runType = $state<"suite" | "trial" | "bench">("suite");
 	let selectedTrial = $state("");
 	let selectedVariant = $state("");
@@ -201,12 +204,10 @@
 </script>
 
 {#if config}
-	<fieldset
-		class="contents"
-		disabled={running}
-		aria-busy={running}
-	>
-	<div class="flex flex-wrap items-center gap-2" class:opacity-60={running}>
+	{#if isRunning}
+		<RunProgress />
+	{:else}
+	<div class="flex flex-wrap items-center gap-2">
 		<div class="inline-flex overflow-hidden rounded border border-border-default">
 			{#each ["suite", "trial", "bench"] as type}
 				<button
@@ -302,5 +303,5 @@
 			<span class="text-[11px] text-accent-red">{error}</span>
 		{/if}
 	</div>
-	</fieldset>
+	{/if}
 {/if}
