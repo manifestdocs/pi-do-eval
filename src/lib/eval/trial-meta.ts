@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parseJsonWith } from "../contracts/codec.js";
+import { trialMetaCodec } from "../contracts/domain.js";
 
 export interface TrialMeta {
   description?: string;
@@ -24,12 +26,8 @@ export function loadTrialMeta(evalDir: string, name: string): TrialMeta | null {
   const filePath = path.join(trialDir(evalDir, name), META_FILE);
   if (!fs.existsSync(filePath)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8")) as TrialMeta;
-    const result: TrialMeta = {};
-    if (typeof parsed.description === "string") result.description = parsed.description;
-    if (Array.isArray(parsed.tags)) result.tags = parsed.tags.filter((tag): tag is string => typeof tag === "string");
-    if (typeof parsed.enabled === "boolean") result.enabled = parsed.enabled;
-    return result;
+    const parsed = parseJsonWith(fs.readFileSync(filePath, "utf-8"), filePath, trialMetaCodec);
+    return parsed.ok ? parsed.value : null;
   } catch (err) {
     console.warn(`Skipping invalid trial meta ${filePath}:`, err);
     return null;
@@ -49,6 +47,6 @@ export function writeTrialMeta(evalDir: string, name: string, meta: TrialMeta): 
   if (meta.enabled !== undefined) payload.enabled = meta.enabled;
 
   const filePath = path.join(dir, META_FILE);
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+  fs.writeFileSync(filePath, `${JSON.stringify(trialMetaCodec.serialize(payload), null, 2)}\n`);
   return filePath;
 }

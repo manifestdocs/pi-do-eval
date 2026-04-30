@@ -113,13 +113,21 @@
 			return;
 		}
 
-		const body: RunRequest = {
-			type: runType,
-			...(runType === "trial" ? { trial: selectedTrial, variant: selectedVariant } : {}),
-			...(runType !== "trial" ? { suite: selectedSuite } : {}),
-			...(selectedModel ? { model: selectedModel } : {}),
-			...(noJudge ? { noJudge: true } : {}),
-		};
+		const body: RunRequest =
+			runType === "trial"
+				? {
+						type: "trial",
+						trial: selectedTrial,
+						variant: selectedVariant,
+						...(selectedModel ? { model: selectedModel } : {}),
+						...(noJudge ? { noJudge: true } : {}),
+					}
+				: {
+						type: runType,
+						suite: selectedSuite,
+						...(selectedModel ? { model: selectedModel } : {}),
+						...(noJudge ? { noJudge: true } : {}),
+					};
 
 		try {
 			const resp = await fetch(launcherUrl, {

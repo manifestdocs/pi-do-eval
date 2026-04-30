@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { type JsonCodec, parseJsonWith } from "../contracts/codec.js";
+import { suiteIndexCodec, suiteReportCodec } from "../contracts/domain.js";
 import type {
   AggregatedSuiteEntry,
   EpochStats,
@@ -148,11 +150,15 @@ function getSuiteReportPath(runsDir: string, suite: string, suiteRunId: string):
   return path.join(suitesDir, getLegacySuiteDirName(suite, suiteRunId), SUITE_REPORT_FILE);
 }
 
-function readJsonFile<T>(filePath: string): T | undefined {
+function readJsonFile<T>(filePath: string, codec?: JsonCodec<T>): T | undefined {
   if (!fs.existsSync(filePath)) return undefined;
 
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+    const raw = fs.readFileSync(filePath, "utf-8");
+    if (!codec) return JSON.parse(raw) as T;
+    const parsed = parseJsonWith(raw, filePath, codec);
+    if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+    return parsed.value;
   } catch (error) {
     console.warn(`Skipping corrupt JSON file at ${filePath}:`, error);
     return undefined;
@@ -160,7 +166,7 @@ function readJsonFile<T>(filePath: string): T | undefined {
 }
 
 function loadSuiteIndex(runsDir: string): SuiteIndexEntry[] {
-  return readJsonFile<SuiteIndexEntry[]>(path.join(getSuitesDir(runsDir), SUITE_INDEX_FILE)) ?? [];
+  return readJsonFile<SuiteIndexEntry[]>(path.join(getSuitesDir(runsDir), SUITE_INDEX_FILE), suiteIndexCodec) ?? [];
 }
 
 export function listSuiteModels(runsDir: string, suite: string): string[] {
@@ -322,7 +328,7 @@ export function updateSuiteIndex(runsDir: string) {
     const dirPath = path.join(suitesDir, dir);
     if (!fs.statSync(dirPath).isDirectory()) continue;
 
-    const report = readJsonFile<SuiteReport>(path.join(dirPath, SUITE_REPORT_FILE));
+    const report = readJsonFile<SuiteReport>(path.join(dirPath, SUITE_REPORT_FILE), suiteReportCodec);
     if (!report) continue;
 
     const entry: SuiteIndexEntry = {
@@ -352,7 +358,7 @@ export function updateSuiteIndex(runsDir: string) {
 }
 
 export function loadSuiteReport(runsDir: string, suite: string, suiteRunId: string): SuiteReport | undefined {
-  return readJsonFile<SuiteReport>(getSuiteReportPath(runsDir, suite, suiteRunId));
+  return readJsonFile<SuiteReport>(getSuiteReportPath(runsDir, suite, suiteRunId), suiteReportCodec);
 }
 
 export function loadLatestSuiteReport(runsDir: string, suite: string, workerModel?: string): SuiteReport | undefined {

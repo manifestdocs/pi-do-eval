@@ -11,6 +11,16 @@ import type {
   SuiteIndexEntry,
   SuiteReport,
 } from "$eval/types.js";
+import {
+  benchIndexCodec,
+  benchReportCodec,
+  evalReportCodec,
+  liveRunReportCodec,
+  runIndexCodec,
+  suiteIndexCodec,
+  suiteReportCodec,
+} from "$lib/contracts/domain.js";
+import { readJson } from "./api.js";
 import { activeProjectId, projectApiPath } from "./projects.js";
 
 // -- Raw data stores -----------------------------------------------------------
@@ -151,9 +161,9 @@ export async function loadInitialData(projectId = get(activeProjectId)): Promise
   const currentProjectId = get(activeProjectId);
   if (currentProjectId && projectId !== currentProjectId) return;
 
-  runs.set(runsResp?.ok ? fixStaleRuns(await runsResp.json()) : []);
-  suiteIndex.set(suiteResp?.ok ? await suiteResp.json() : []);
-  benchIndex.set(benchResp?.ok ? await benchResp.json() : []);
+  runs.set(runsResp?.ok ? fixStaleRuns(await readJson(runsResp, runIndexCodec, "Invalid runs index")) : []);
+  suiteIndex.set(suiteResp?.ok ? await readJson(suiteResp, suiteIndexCodec, "Invalid suite index") : []);
+  benchIndex.set(benchResp?.ok ? await readJson(benchResp, benchIndexCodec, "Invalid bench index") : []);
 }
 
 export async function loadSuiteReport(
@@ -212,7 +222,7 @@ export async function loadRunReport(dir: string, projectId = get(activeProjectId
       }
       throw new Error("Not found");
     }
-    const report: RunDetailData = await resp.json();
+    const report: RunDetailData = await readJson(resp, evalReportCodec, "Invalid run report");
     const currentProjectId = get(activeProjectId);
     if (currentProjectId && projectId !== currentProjectId) return null;
     runReportCache.set(dir, report);
@@ -245,7 +255,7 @@ export async function loadLiveRunReport(
       return null;
     }
 
-    const report: RunDetailData = await resp.json();
+    const report: RunDetailData = await readJson(resp, liveRunReportCodec, "Invalid live report");
     const currentProjectId = get(activeProjectId);
     if (currentProjectId && projectId !== currentProjectId) return null;
     reportError.set(null);
@@ -279,7 +289,7 @@ export async function loadBenchReport(
     if (!url || !projectId) return null;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error("Not found");
-    const report: BenchReport = await resp.json();
+    const report = await readJson(resp, benchReportCodec, "Invalid bench report");
     const currentProjectId = get(activeProjectId);
     if (currentProjectId && projectId !== currentProjectId) return null;
     currentBenchReport.set(report);
@@ -355,7 +365,7 @@ export async function getOrLoadSuiteReport(
     if (!url || !projectId) return null;
     const resp = await fetch(url);
     if (!resp.ok) return null;
-    const report: SuiteReport = await resp.json();
+    const report = await readJson(resp, suiteReportCodec, "Invalid suite report");
     const currentProjectId = get(activeProjectId);
     if (currentProjectId && projectId !== currentProjectId) return null;
     let suiteEntries = suiteReportCache.get(suiteName);

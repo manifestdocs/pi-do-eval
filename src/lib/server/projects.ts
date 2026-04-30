@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { parseJsonWith } from "$lib/contracts/codec.js";
+import { projectRegistryCodec } from "$lib/contracts/domain.js";
 
 export interface RegisteredProject {
   id: string;
@@ -39,15 +41,8 @@ export function loadProjectRegistry(): ProjectRegistry {
   }
 
   try {
-    const parsed = JSON.parse(fs.readFileSync(registryPath, "utf-8")) as Partial<ProjectRegistry>;
-    const projects = Array.isArray(parsed.projects)
-      ? parsed.projects.filter(isRegisteredProject).sort((a, b) => b.lastSelectedAt.localeCompare(a.lastSelectedAt))
-      : [];
-    const activeProjectId =
-      typeof parsed.activeProjectId === "string" && projects.some((project) => project.id === parsed.activeProjectId)
-        ? parsed.activeProjectId
-        : (projects[0]?.id ?? null);
-    return { activeProjectId, projects };
+    const parsed = parseJsonWith(fs.readFileSync(registryPath, "utf-8"), registryPath, projectRegistryCodec);
+    return parsed.ok ? parsed.value : { activeProjectId: null, projects: [] };
   } catch {
     return { activeProjectId: null, projects: [] };
   }
@@ -57,13 +52,7 @@ export function saveProjectRegistry(registry: ProjectRegistry): void {
   const registryPath = getProjectRegistryPath();
   fs.mkdirSync(path.dirname(registryPath), { recursive: true });
 
-  const normalized = {
-    activeProjectId:
-      registry.activeProjectId && registry.projects.some((project) => project.id === registry.activeProjectId)
-        ? registry.activeProjectId
-        : (registry.projects[0]?.id ?? null),
-    projects: [...registry.projects].sort((a, b) => b.lastSelectedAt.localeCompare(a.lastSelectedAt)),
-  };
+  const normalized = projectRegistryCodec.serialize(registry);
 
   const tempPath = `${registryPath}.tmp-${process.pid}`;
   fs.writeFileSync(tempPath, JSON.stringify(normalized, null, 2));
@@ -225,18 +214,4 @@ function safeRealPath(candidatePath: string): string | null {
   } catch {
     return null;
   }
-}
-
-function isRegisteredProject(value: unknown): value is RegisteredProject {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<RegisteredProject>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    typeof candidate.projectRoot === "string" &&
-    typeof candidate.evalDir === "string" &&
-    typeof candidate.addedAt === "string" &&
-    typeof candidate.updatedAt === "string" &&
-    typeof candidate.lastSelectedAt === "string"
-  );
 }

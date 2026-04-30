@@ -1,11 +1,13 @@
 import { json } from "@sveltejs/kit";
 import { loadTrialMeta, type TrialMeta, writeTrialMeta } from "$eval/trial-meta.js";
+import { partialTrialMetaCodec } from "$lib/contracts/domain.js";
+import { issuesMessage, jsonError, parseJsonBody } from "$lib/server/api.js";
 import { getRegisteredProject } from "$lib/server/projects.js";
 import type { RequestHandler } from "./$types.js";
 
 export const GET: RequestHandler = ({ params }) => {
   const project = getRegisteredProject(params.projectId);
-  if (!project) return json({ error: "Project not found" }, { status: 404 });
+  if (!project) return jsonError("Project not found", 404);
 
   const meta = loadTrialMeta(project.evalDir, params.name);
   return json({ meta: meta ?? {} });
@@ -13,14 +15,17 @@ export const GET: RequestHandler = ({ params }) => {
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const project = getRegisteredProject(params.projectId);
-  if (!project) return json({ error: "Project not found" }, { status: 404 });
+  if (!project) return jsonError("Project not found", 404);
 
-  const body = (await request.json()) as Partial<TrialMeta>;
+  const body = await parseJsonBody(request, partialTrialMetaCodec);
+  if (!body.ok) {
+    return jsonError(issuesMessage(body.issues), 400);
+  }
   const existing = loadTrialMeta(project.evalDir, params.name) ?? {};
   const next: TrialMeta = {
-    description: body.description !== undefined ? body.description : existing.description,
-    tags: body.tags !== undefined ? body.tags : existing.tags,
-    enabled: body.enabled !== undefined ? body.enabled : existing.enabled,
+    description: body.value.description !== undefined ? body.value.description : existing.description,
+    tags: body.value.tags !== undefined ? body.value.tags : existing.tags,
+    enabled: body.value.enabled !== undefined ? body.value.enabled : existing.enabled,
   };
 
   try {

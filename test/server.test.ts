@@ -9,6 +9,9 @@ import { projectWatchers } from "../src/lib/server/runtime.js";
 import { createShutdownController } from "../src/lib/server/shutdown.js";
 import { RunsWatcher } from "../src/lib/server/watcher.js";
 import { GET as getProjectEvents } from "../src/routes/api/projects/[projectId]/events/+server.js";
+import { POST as launchProjectRun } from "../src/routes/api/projects/[projectId]/launcher/+server.js";
+import { POST as createProjectSuite } from "../src/routes/api/projects/[projectId]/suites/+server.js";
+import { PATCH as updateProjectTrial } from "../src/routes/api/projects/[projectId]/trials/[name]/+server.js";
 
 let tmpDir: string;
 
@@ -64,6 +67,59 @@ describe("project SSE routes", () => {
     await response.body?.cancel();
 
     expect(projectWatchers.getListenerCount(project.id)).toBe(0);
+  });
+});
+
+describe("project API validation", () => {
+  it("rejects malformed launcher requests before spawning", async () => {
+    const project = makeEvalProject("launcher-validation");
+    fs.mkdirSync(path.join(project.evalDir, "trials", "example"), { recursive: true });
+    fs.writeFileSync(
+      path.join(project.evalDir, "trials", "example", "config.ts"),
+      "export default { variants: { default: {} } };\n",
+    );
+
+    const response = await launchProjectRun({
+      params: { projectId: project.id },
+      request: new Request("http://local", {
+        method: "POST",
+        body: JSON.stringify({ type: "trial", trial: "example" }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: "request.variant must be a string" });
+  });
+
+  it("rejects malformed suite definitions without writing files", async () => {
+    const project = makeEvalProject("suite-validation");
+
+    const response = await createProjectSuite({
+      params: { projectId: project.id },
+      request: new Request("http://local", {
+        method: "POST",
+        body: JSON.stringify({ name: "bad", trials: [{ trial: "example" }] }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(400);
+    expect(fs.existsSync(path.join(project.evalDir, "suites", "bad.json"))).toBe(false);
+  });
+
+  it("rejects malformed trial metadata without writing files", async () => {
+    const project = makeEvalProject("trial-validation");
+    fs.mkdirSync(path.join(project.evalDir, "trials", "example"), { recursive: true });
+
+    const response = await updateProjectTrial({
+      params: { projectId: project.id, name: "example" },
+      request: new Request("http://local", {
+        method: "PATCH",
+        body: JSON.stringify({ tags: ["ok", 1] }),
+      }),
+    } as never);
+
+    expect(response.status).toBe(400);
+    expect(fs.existsSync(path.join(project.evalDir, "trials", "example", "meta.json"))).toBe(false);
   });
 });
 
@@ -132,3 +188,11 @@ describe("shutdown controller", () => {
     expect(stopAll).toHaveBeenCalledOnce();
   });
 });
+
+function makeEvalProject(name: string) {
+  const projectRoot = path.join(tmpDir, name);
+  const evalDir = path.join(projectRoot, "eval");
+  fs.mkdirSync(evalDir, { recursive: true });
+  fs.writeFileSync(path.join(evalDir, "eval.ts"), "export {};\n");
+  return { ...addOrUpdateProject(projectRoot).project, evalDir };
+}

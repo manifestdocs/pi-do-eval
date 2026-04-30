@@ -1,5 +1,7 @@
 import { get, writable } from "svelte/store";
 import type { LauncherConfig, RunRequest } from "$eval/types.js";
+import { launcherActionResponseCodec, launcherConfigCodec } from "$lib/contracts/domain.js";
+import { readJson } from "./api.js";
 import { activeProjectId, projectApiPath } from "./projects.js";
 import { resetCurrentReports } from "./runs.js";
 import { setAutoSelect } from "./sse.js";
@@ -30,7 +32,7 @@ export async function launchRun(request: RunRequest): Promise<LauncherActionResu
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     });
-    const result = (await resp.json()) as { ok: boolean; id?: string; error?: string };
+    const result = await readJson(resp, launcherActionResponseCodec, "Failed to start run");
     if (!result.ok) {
       return { ok: false, error: result.error ?? "Failed to start run" };
     }
@@ -38,8 +40,7 @@ export async function launchRun(request: RunRequest): Promise<LauncherActionResu
     resetCurrentReports();
     if (request.type !== "bench") {
       const config = get(launcherConfig);
-      const modelLabel =
-        request.model ?? (config?.defaultWorker ? formatModel(config.defaultWorker) : "agent default");
+      const modelLabel = request.model ?? (config?.defaultWorker ? formatModel(config.defaultWorker) : "agent default");
       setAutoSelect({
         id: result.id ?? "pending",
         type: request.type,
@@ -68,7 +69,7 @@ export async function loadLauncherConfig(projectId = get(activeProjectId)): Prom
   try {
     const resp = await fetch(url);
     if (resp.ok) {
-      const config = (await resp.json()) as LauncherConfig;
+      const config = await readJson(resp, launcherConfigCodec, "Invalid launcher config");
       if (projectId === get(activeProjectId)) {
         launcherConfig.set(config);
       }

@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parseJson } from "../contracts/codec.js";
+import { parseSuiteDefinitionWithFallbackName, suiteDefinitionCodec } from "../contracts/domain.js";
 
 export interface SuiteDefinition {
   name: string;
@@ -17,9 +19,7 @@ export function getSuiteDefsDir(evalDir: string): string {
 
 export function validateSuiteName(name: string): void {
   if (!SUITE_NAME_PATTERN.test(name)) {
-    throw new Error(
-      `Invalid suite name: "${name}". Must match ${SUITE_NAME_PATTERN}`,
-    );
+    throw new Error(`Invalid suite name: "${name}". Must match ${SUITE_NAME_PATTERN}`);
   }
 }
 
@@ -33,17 +33,11 @@ export function loadFileSuites(evalDir: string): SuiteDefinition[] {
     const filePath = path.join(dir, entry);
     try {
       const raw = fs.readFileSync(filePath, "utf-8");
-      const parsed = JSON.parse(raw) as Partial<SuiteDefinition>;
-      if (!Array.isArray(parsed.trials)) continue;
-      const name = parsed.name ?? path.basename(entry, ".json");
-      results.push({
-        name,
-        ...(parsed.description ? { description: parsed.description } : {}),
-        trials: parsed.trials,
-        ...(parsed.regressionThreshold !== undefined
-          ? { regressionThreshold: parsed.regressionThreshold }
-          : {}),
-      });
+      const parsed = parseJson(raw, filePath);
+      if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+      const suite = parseSuiteDefinitionWithFallbackName(parsed.value, path.basename(entry, ".json"));
+      if (!suite.ok) continue;
+      results.push(suite.value);
     } catch (err) {
       console.warn(`Skipping invalid suite file ${filePath}:`, err);
     }
@@ -62,11 +56,9 @@ export function writeFileSuite(evalDir: string, suite: SuiteDefinition): string 
     name: suite.name,
     ...(suite.description ? { description: suite.description } : {}),
     trials: suite.trials,
-    ...(suite.regressionThreshold !== undefined
-      ? { regressionThreshold: suite.regressionThreshold }
-      : {}),
+    ...(suite.regressionThreshold !== undefined ? { regressionThreshold: suite.regressionThreshold } : {}),
   };
-  fs.writeFileSync(filePath, `${JSON.stringify(serializable, null, 2)}\n`);
+  fs.writeFileSync(filePath, `${JSON.stringify(suiteDefinitionCodec.serialize(serializable), null, 2)}\n`);
   return filePath;
 }
 

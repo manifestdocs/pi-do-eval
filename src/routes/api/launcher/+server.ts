@@ -1,5 +1,6 @@
 import { json } from "@sveltejs/kit";
-import type { RunRequest } from "$eval/types.js";
+import { runRequestCodec } from "$lib/contracts/domain.js";
+import { issuesMessage, launcherError, parseJsonBody } from "$lib/server/api.js";
 import { getRunStatus, spawnRun } from "$lib/server/launcher.js";
 import { getActiveProjectRuntime, type ProjectRuntime } from "$lib/server/runtime.js";
 import type { RequestHandler } from "./$types.js";
@@ -29,19 +30,23 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
+  const body = await parseJsonBody(request, runRequestCodec);
+  if (!body.ok) {
+    return launcherError(issuesMessage(body.issues), 400);
+  }
+
   let runtime: ProjectRuntime | null = null;
   try {
     runtime = await getActiveProjectRuntime();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load project config";
-    return json({ ok: false, error: message }, { status: 500 });
+    return launcherError(message, 500);
   }
   if (!runtime?.launcherConfig) {
-    return json({ ok: false, error: "Launcher not configured" }, { status: 404 });
+    return launcherError("Launcher not configured", 404);
   }
 
-  const body = (await request.json()) as RunRequest;
-  const result = spawnRun(runtime.project.id, body, runtime.runCommand, runtime.runsDir, runtime.launcherConfig);
+  const result = spawnRun(runtime.project.id, body.value, runtime.runCommand, runtime.runsDir, runtime.launcherConfig);
   const status = result.ok ? 200 : 409;
   return json(result, { status });
 };

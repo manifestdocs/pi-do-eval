@@ -1,4 +1,6 @@
 import { json } from "@sveltejs/kit";
+import { projectPathRequestCodec } from "$lib/contracts/domain.js";
+import { issuesMessage, jsonError, parseJsonBody } from "$lib/server/api.js";
 import { addOrUpdateProject, loadProjectRegistry } from "$lib/server/projects.js";
 import { projectWatchers } from "$lib/server/runtime.js";
 import type { RequestHandler } from "./$types.js";
@@ -9,13 +11,13 @@ export const GET: RequestHandler = () => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-  const body = (await request.json()) as { path?: string };
-  if (!body.path) {
-    return json({ error: "Project path is required" }, { status: 400 });
+  const body = await parseJsonBody(request, projectPathRequestCodec);
+  if (!body.ok) {
+    return jsonError(issuesMessage(body.issues), 400);
   }
 
   try {
-    const { registry } = addOrUpdateProject(body.path);
+    const { registry } = addOrUpdateProject(body.value.path);
     projectWatchers.syncProjects(registry.projects);
     return json(registry);
   } catch (error) {

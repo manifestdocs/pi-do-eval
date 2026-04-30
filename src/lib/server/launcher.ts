@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { LauncherConfig, RunRequest } from "$eval/types.js";
+import { parseJsonWith } from "$lib/contracts/codec.js";
+import { activeRunsRegistryCodec } from "$lib/contracts/domain.js";
 
 interface ActiveRun {
   id: string;
@@ -14,7 +16,7 @@ interface ActiveRun {
   forceKillTimer?: ReturnType<typeof setTimeout>;
 }
 
-interface PersistedActiveRun {
+export interface PersistedActiveRun {
   id: string;
   projectId: string;
   pid: number;
@@ -38,7 +40,8 @@ function loadActiveRunsRegistry(): Record<string, PersistedActiveRun> {
   const registryPath = getActiveRunsRegistryPath();
   if (!fs.existsSync(registryPath)) return {};
   try {
-    return JSON.parse(fs.readFileSync(registryPath, "utf-8")) as Record<string, PersistedActiveRun>;
+    const parsed = parseJsonWith(fs.readFileSync(registryPath, "utf-8"), registryPath, activeRunsRegistryCodec);
+    return parsed.ok ? parsed.value : {};
   } catch {
     return {};
   }
@@ -47,7 +50,7 @@ function loadActiveRunsRegistry(): Record<string, PersistedActiveRun> {
 function saveActiveRunsRegistry(registry: Record<string, PersistedActiveRun>): void {
   const registryPath = getActiveRunsRegistryPath();
   fs.mkdirSync(path.dirname(registryPath), { recursive: true });
-  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+  fs.writeFileSync(registryPath, JSON.stringify(activeRunsRegistryCodec.serialize(registry), null, 2));
 }
 
 function persistActiveRun(run: ActiveRun): void {
@@ -142,11 +145,11 @@ function buildArgs(request: RunRequest): string[] {
   const args: string[] = [];
 
   if (request.type === "trial") {
-    args.push("run", "--trial", request.trial ?? "", "--variant", request.variant ?? "");
+    args.push("run", "--trial", request.trial, "--variant", request.variant);
   } else if (request.type === "suite") {
-    args.push("run", request.suite ?? "");
+    args.push("run", request.suite);
   } else if (request.type === "bench") {
-    args.push("bench", request.suite ?? "");
+    args.push("bench", request.suite);
   }
 
   if (request.model) {
@@ -161,16 +164,12 @@ function buildArgs(request: RunRequest): string[] {
 
 function validateRequest(request: RunRequest, config: LauncherConfig): string | null {
   if (request.type === "trial") {
-    if (!request.trial || !request.variant) {
-      return "Trial and variant are required";
-    }
     const trial = config.trials.find((t) => t.name === request.trial);
     if (!trial) return `Unknown trial: ${request.trial}`;
     if (!trial.variants.includes(request.variant)) {
       return `Unknown variant "${request.variant}" for trial "${request.trial}"`;
     }
   } else {
-    if (!request.suite) return "Suite name is required";
     if (!config.suites[request.suite]) {
       return `Unknown suite: ${request.suite}`;
     }

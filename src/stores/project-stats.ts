@@ -1,6 +1,8 @@
 import { derived, get, writable } from "svelte/store";
 import type { LauncherConfig, SuiteIndexEntry } from "$eval/types.js";
+import { launcherConfigCodec, suiteIndexCodec } from "$lib/contracts/domain.js";
 import { computeProjectStats, type ProjectStats } from "$lib/project-stats.js";
+import { readJson } from "./api.js";
 import { projectApiPath, projects } from "./projects.js";
 
 type StatsByProject = Record<string, ProjectStats>;
@@ -8,13 +10,11 @@ type StatsByProject = Record<string, ProjectStats>;
 export const allProjectStats = writable<StatsByProject>({});
 export const projectStatsLoading = writable<Record<string, boolean>>({});
 
-export const activeProjectsWithStats = derived(
-  [projects, allProjectStats],
-  ([$projects, $stats]) =>
-    $projects.map((project) => ({
-      project,
-      stats: $stats[project.id] ?? null,
-    })),
+export const activeProjectsWithStats = derived([projects, allProjectStats], ([$projects, $stats]) =>
+  $projects.map((project) => ({
+    project,
+    stats: $stats[project.id] ?? null,
+  })),
 );
 
 export async function loadProjectStats(projectId: string): Promise<void> {
@@ -30,8 +30,12 @@ export async function loadProjectStats(projectId: string): Promise<void> {
       fetch(suitesUrl).catch(() => null),
     ]);
 
-    const config: LauncherConfig | null = launcherResp?.ok ? await launcherResp.json() : null;
-    const suiteIndex: SuiteIndexEntry[] = suitesResp?.ok ? await suitesResp.json() : [];
+    const config: LauncherConfig | null = launcherResp?.ok
+      ? await readJson(launcherResp, launcherConfigCodec, "Invalid launcher config")
+      : null;
+    const suiteIndex: SuiteIndexEntry[] = suitesResp?.ok
+      ? await readJson(suitesResp, suiteIndexCodec, "Invalid suite index")
+      : [];
 
     const stats = computeProjectStats(config, suiteIndex);
     allProjectStats.update((state) => ({ ...state, [projectId]: stats }));

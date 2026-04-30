@@ -1,5 +1,7 @@
 import { get } from "svelte/store";
 import type { EvalEvent, RunIndexEntry } from "$eval/types.js";
+import { benchIndexCodec, evalEventCodec, suiteIndexCodec } from "$lib/contracts/domain.js";
+import { readJson } from "./api.js";
 import { activeProjectId, projectApiPath } from "./projects.js";
 import { benchIndex, loadLiveRunReport, loadRunReport, loadSuiteReport, runs, suiteIndex } from "./runs.js";
 import {
@@ -47,8 +49,8 @@ export function connectSSE(projectId: string | null): void {
   eventSource.onmessage = (msg) => {
     if (connectedProjectId !== streamProjectId) return;
     try {
-      const event: EvalEvent = JSON.parse(msg.data);
-      handleEvent(event, streamProjectId);
+      const parsed = evalEventCodec.parse(JSON.parse(msg.data));
+      if (parsed.ok) handleEvent(parsed.value, streamProjectId);
     } catch {
       // Ignore malformed events
     }
@@ -155,8 +157,8 @@ async function refreshIndices(projectId: string): Promise<void> {
     fetch(benchUrl).catch(() => null),
   ]);
   if (projectId !== get(activeProjectId)) return;
-  if (suiteResp?.ok) suiteIndex.set(await suiteResp.json());
-  if (benchResp?.ok) benchIndex.set(await benchResp.json());
+  if (suiteResp?.ok) suiteIndex.set(await readJson(suiteResp, suiteIndexCodec, "Invalid suite index"));
+  if (benchResp?.ok) benchIndex.set(await readJson(benchResp, benchIndexCodec, "Invalid bench index"));
 
   const suiteName = get(selectedSuiteName);
   const suiteRunId = get(selectedSuiteRunId);

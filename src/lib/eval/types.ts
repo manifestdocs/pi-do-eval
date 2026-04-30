@@ -408,11 +408,7 @@ export interface LauncherConfig {
   regressionThreshold?: number;
 }
 
-export interface RunRequest {
-  type: "trial" | "suite" | "bench";
-  trial?: string;
-  variant?: string;
-  suite?: string;
-  model?: string;
-  noJudge?: boolean;
-}
+export type RunRequest =
+  | { type: "trial"; trial: string; variant: string; model?: string; noJudge?: boolean }
+  | { type: "suite"; suite: string; model?: string; noJudge?: boolean }
+  | { type: "bench"; suite: string; model?: string; noJudge?: boolean };

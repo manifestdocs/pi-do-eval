@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parseJsonWith } from "../contracts/codec.js";
+import { evalReportCodec } from "../contracts/domain.js";
 import type {
   AggregatedSuiteEntry,
   EvalEvent,
@@ -37,7 +39,9 @@ export function updateRunIndex(runsDir: string, emit?: (event: EvalEvent) => voi
     const reportPath = path.join(dirPath, "report.json");
     if (fs.existsSync(reportPath)) {
       try {
-        const report: EvalReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+        const parsed = parseJsonWith(fs.readFileSync(reportPath, "utf-8"), reportPath, evalReportCodec);
+        if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+        const report = parsed.value;
         const entry: RunIndexEntry = {
           dir,
           trial: report.meta.trial,

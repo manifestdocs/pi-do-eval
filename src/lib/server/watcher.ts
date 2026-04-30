@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EvalEvent, RunIndexEntry } from "$eval/types.js";
+import { parseJson, parseJsonWith } from "$lib/contracts/codec.js";
+import { evalReportCodec, runIndexCodec } from "$lib/contracts/domain.js";
 
 const DEBOUNCE_MS = 300;
 const MAX_BUFFERED_EVENTS = 500;
@@ -118,7 +120,9 @@ export class RunsWatcher {
       const content = fs.readFileSync(indexPath, "utf-8");
       if (content === this.lastIndex) return;
       this.lastIndex = content;
-      const runs: RunIndexEntry[] = JSON.parse(content);
+      const parsed = parseJsonWith(content, indexPath, runIndexCodec);
+      if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+      const runs: RunIndexEntry[] = parsed.value;
       this.emit({ type: "index_updated", timestamp: Date.now(), runs });
     } catch {
       // Index doesn't exist yet
@@ -128,17 +132,20 @@ export class RunsWatcher {
   private onStatusChanged(filename: string): void {
     const filePath = path.join(this.runsPath, filename);
     try {
-      const status = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      const parsed = parseJson(fs.readFileSync(filePath, "utf-8"), filePath);
+      if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null || Array.isArray(parsed.value))
+        return;
+      const status = parsed.value as Record<string, unknown>;
       const dir = path.dirname(filename);
       this.emit({
         type: "run_started",
         timestamp: Date.now(),
         dir,
-        trial: status.trial ?? "",
-        variant: status.variant ?? "",
-        suite: status.suite,
-        suiteRunId: status.suiteRunId,
-        workerModel: status.workerModel,
+        trial: typeof status.trial === "string" ? status.trial : "",
+        variant: typeof status.variant === "string" ? status.variant : "",
+        suite: typeof status.suite === "string" ? status.suite : undefined,
+        suiteRunId: typeof status.suiteRunId === "string" ? status.suiteRunId : undefined,
+        workerModel: typeof status.workerModel === "string" ? status.workerModel : undefined,
       });
     } catch {
       // File might not be fully written yet
@@ -148,7 +155,13 @@ export class RunsWatcher {
   private onLiveChanged(filename: string): void {
     const filePath = path.join(this.runsPath, filename);
     try {
-      const live = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      const parsed = parseJson(fs.readFileSync(filePath, "utf-8"), filePath);
+      if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null || Array.isArray(parsed.value))
+        return;
+      const live = parsed.value as {
+        meta?: { durationMs?: number };
+        session?: { toolCalls?: unknown[]; fileWrites?: unknown[] };
+      };
       const dir = path.dirname(filename);
       this.emit({
         type: "run_progress",
@@ -167,7 +180,9 @@ export class RunsWatcher {
     if (filename.startsWith("suites")) return;
     const filePath = path.join(this.runsPath, filename);
     try {
-      const report = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      const parsed = parseJsonWith(fs.readFileSync(filePath, "utf-8"), filePath, evalReportCodec);
+      if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+      const report = parsed.value;
       const dir = path.dirname(filename);
       this.emit({
         type: "run_completed",

@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parseJsonWith } from "../contracts/codec.js";
+import { benchReportCodec } from "../contracts/domain.js";
 import type { BenchEntry, BenchIndexEntry, BenchReport, SuiteReport } from "./types.js";
 
 const BENCH_DIR_NAME = "bench";
@@ -83,7 +85,9 @@ export function updateBenchIndex(runsDir: string) {
     if (!fs.existsSync(reportPath)) continue;
 
     try {
-      const report = JSON.parse(fs.readFileSync(reportPath, "utf-8")) as BenchReport;
+      const parsed = parseJsonWith(fs.readFileSync(reportPath, "utf-8"), reportPath, benchReportCodec);
+      if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+      const report = parsed.value;
       entries.push({
         suite: report.suite,
         benchRunId: report.benchRunId,

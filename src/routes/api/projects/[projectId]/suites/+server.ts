@@ -1,11 +1,13 @@
 import { json } from "@sveltejs/kit";
 import { loadFileSuites, type SuiteDefinition, writeFileSuite } from "$eval/suite-files.js";
+import { suiteDefinitionCodec } from "$lib/contracts/domain.js";
+import { issuesMessage, jsonError, parseJsonBody } from "$lib/server/api.js";
 import { getRegisteredProject } from "$lib/server/projects.js";
 import type { RequestHandler } from "./$types.js";
 
 export const GET: RequestHandler = ({ params }) => {
   const project = getRegisteredProject(params.projectId);
-  if (!project) return json({ error: "Project not found" }, { status: 404 });
+  if (!project) return jsonError("Project not found", 404);
 
   return json({ suites: loadFileSuites(project.evalDir) });
 };
@@ -14,18 +16,16 @@ export const POST: RequestHandler = async ({ params, request }) => {
   const project = getRegisteredProject(params.projectId);
   if (!project) return json({ error: "Project not found" }, { status: 404 });
 
-  const body = (await request.json()) as Partial<SuiteDefinition>;
-  if (!body.name || !Array.isArray(body.trials)) {
-    return json({ error: "Name and trials are required" }, { status: 400 });
+  const body = await parseJsonBody(request, suiteDefinitionCodec);
+  if (!body.ok) {
+    return jsonError(issuesMessage(body.issues), 400);
   }
 
   const suite: SuiteDefinition = {
-    name: body.name,
-    ...(body.description ? { description: body.description } : {}),
-    trials: body.trials,
-    ...(body.regressionThreshold !== undefined
-      ? { regressionThreshold: body.regressionThreshold }
-      : {}),
+    name: body.value.name,
+    ...(body.value.description ? { description: body.value.description } : {}),
+    trials: body.value.trials,
+    ...(body.value.regressionThreshold !== undefined ? { regressionThreshold: body.value.regressionThreshold } : {}),
   };
 
   const existing = loadFileSuites(project.evalDir).find((entry) => entry.name === suite.name);
