@@ -68,6 +68,21 @@ export function mergeIssues(...results: ParseResult<unknown>[]): string[] {
   return results.flatMap((result) => (result.ok ? [] : result.issues));
 }
 
+/**
+ * Append a "Suggestion:" hint to any issue whose text contains `match`. The
+ * leading message is preserved verbatim so existing test assertions on the
+ * error class still match; the hint lives on a new line below it.
+ *
+ * Use at codec sites where you know the field semantics well enough to
+ * propose a concrete fix — e.g. "set `regressions: { threshold: 3 }`".
+ */
+export function withSuggestion<T>(result: ParseResult<T>, match: string, suggestion: string): ParseResult<T> {
+  if (result.ok) return result;
+  return failIssues(
+    result.issues.map((issue) => (issue.includes(match) ? `${issue}\n  Suggestion: ${suggestion}` : issue)),
+  );
+}
+
 export function parseJson(text: string, path: string): ParseResult<unknown> {
   try {
     return ok(JSON.parse(text));

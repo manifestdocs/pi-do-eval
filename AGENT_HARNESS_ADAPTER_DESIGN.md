@@ -7,7 +7,7 @@ default adapter, and a Codex adapter.
 
 ## Context
 
-`pi-do-eval` began as a framework for evaluating Pi extensions. The existing
+`do-eval` began as a framework for evaluating Pi extensions. The existing
 pipeline already has useful framework-level responsibilities:
 
 - load trials, variants, suites, and epoch settings;
@@ -30,7 +30,7 @@ Droid, or other coding agents need the same extension point.
 
 ## Decision
 
-Keep `pi-do-eval` as a runtime-neutral agent eval framework. Add
+Keep `do-eval` as a runtime-neutral agent eval framework. Add
 runtime-specific **agent harness adapters** that own only the pieces that vary
 by agent runtime:
 

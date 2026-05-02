@@ -223,7 +223,7 @@ function isolatedCodexHomeForWorkDir(workDir: string): string {
   const resolvedWorkDir = path.resolve(workDir);
   const digest = createHash("sha256").update(resolvedWorkDir).digest("hex").slice(0, 16);
   const basename = path.basename(resolvedWorkDir).replace(/[^a-zA-Z0-9._-]+/g, "-") || "workdir";
-  return path.join(os.tmpdir(), "pi-do-eval-codex-home", `${basename}-${digest}`);
+  return path.join(os.tmpdir(), "do-eval-codex-home", `${basename}-${digest}`);
 }
 
 function normalizeMarketplaceSource(source: string): string {

@@ -157,7 +157,7 @@ describe("formatMarkdown", () => {
 
 describe("updateRunIndex", () => {
   it("ignores suite reports and keeps suite metadata on run entries", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runs-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-runs-"));
     const runDir = path.join(runsDir, "2026-01-01-example-default");
 
     writeReport(
@@ -211,7 +211,7 @@ describe("updateRunIndex", () => {
   });
 
   it("propagates runId, agentSnapshot, and environment onto index entries", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runs-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-runs-"));
     const runDir = path.join(runsDir, "2026-04-17-run-with-snapshot");
 
     writeReport(
@@ -257,7 +257,7 @@ describe("updateRunIndex", () => {
   });
 
   it("omits agentSnapshot/environment/runId when report has none (backward compat)", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runs-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-runs-"));
     const runDir = path.join(runsDir, "2026-04-17-legacy-run");
 
     writeReport(makeReport(), runDir);

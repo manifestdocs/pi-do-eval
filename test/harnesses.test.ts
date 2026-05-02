@@ -139,7 +139,7 @@ describe("agent harnesses", () => {
   });
 
   it("builds an isolated Codex command without ignoring user config by default", () => {
-    const workDir = path.join(os.tmpdir(), "pi-do-eval-work");
+    const workDir = path.join(os.tmpdir(), "do-eval-work");
     const spec = codexHarness.buildWorkerCommand({
       workDir,
       prompt: "Do the task",
@@ -153,7 +153,7 @@ describe("agent harnesses", () => {
       },
     });
 
-    expect(spec.env?.CODEX_HOME).toContain(path.join(os.tmpdir(), "pi-do-eval-codex-home"));
+    expect(spec.env?.CODEX_HOME).toContain(path.join(os.tmpdir(), "do-eval-codex-home"));
     const relativeHome = path.relative(workDir, spec.env?.CODEX_HOME ?? "");
     expect(relativeHome.startsWith("..") || path.isAbsolute(relativeHome)).toBe(true);
     // isolateHome alone no longer forces --ignore-user-config; the per-run
@@ -164,7 +164,7 @@ describe("agent harnesses", () => {
   });
 
   it("ignores user config when ignoreUserConfig is set alongside isolateHome", () => {
-    const workDir = path.join(os.tmpdir(), "pi-do-eval-work");
+    const workDir = path.join(os.tmpdir(), "do-eval-work");
     const spec = codexHarness.buildWorkerCommand({
       workDir,
       prompt: "Do the task",
@@ -253,7 +253,7 @@ describe("parseCodexSession", () => {
   });
 
   it("rejects unauthenticated isolated Codex homes", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-codex-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-codex-"));
     try {
       expect(() =>
         codexHarness.prepare?.({
@@ -267,7 +267,7 @@ describe("parseCodexSession", () => {
   });
 
   it("copies only auth into an isolated Codex home", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-codex-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-codex-"));
     const authHome = path.join(tmpDir, "source-home");
     const workDir = path.join(tmpDir, "work");
     const agent = { harness: "codex" as const, codex: { isolateHome: true, authHome } };
@@ -298,7 +298,7 @@ describe("parseCodexSession", () => {
   });
 
   it("cleans up isolated Codex homes", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-codex-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-codex-"));
     const authHome = path.join(tmpDir, "source-home");
     const workDir = path.join(tmpDir, "work");
     const agent = { harness: "codex" as const, codex: { isolateHome: true, authHome } };
@@ -325,7 +325,7 @@ describe("parseCodexSession", () => {
   });
 
   it("rejects isolated Codex homes when auth is missing", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-codex-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-codex-"));
     try {
       expect(() =>
         codexHarness.prepare?.({
@@ -339,7 +339,7 @@ describe("parseCodexSession", () => {
   });
 
   it("rejects Codex configs that set both explicit and isolated homes", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-codex-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-codex-"));
     try {
       expect(() =>
         codexHarness.prepare?.({

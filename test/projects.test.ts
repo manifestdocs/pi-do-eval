@@ -15,7 +15,7 @@ import {
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-projects-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-projects-"));
   process.env.PI_DO_EVAL_CONFIG_HOME = path.join(tmpDir, "config-home");
 });
 
@@ -85,6 +85,11 @@ function makeProject(projectName: string, evalDirName = "eval") {
   const projectRoot = path.join(tmpDir, projectName);
   const evalDir = path.join(projectRoot, evalDirName);
   fs.mkdirSync(evalDir, { recursive: true });
-  fs.writeFileSync(path.join(evalDir, "eval.ts"), "export {};\n");
+  fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
+  fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default {};\n");
+  fs.writeFileSync(
+    path.join(evalDir, "trials", "example", "trial.yaml"),
+    "description: Example\nvariants:\n  default: {}\n",
+  );
   return { projectRoot, evalDir };
 }

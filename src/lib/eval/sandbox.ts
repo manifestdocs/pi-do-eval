@@ -9,7 +9,7 @@ export function checkAiJail(): boolean {
     execFileSync("which", ["ai-jail"], { stdio: "ignore" });
     aiJailAvailable = true;
   } catch {
-    console.warn("[pi-do-eval] ai-jail not found on PATH — running without sandbox");
+    console.warn("[do-eval] ai-jail not found on PATH — running without sandbox");
     aiJailAvailable = false;
   }
   return aiJailAvailable;

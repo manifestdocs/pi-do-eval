@@ -6,7 +6,7 @@ Refactor the codebase so the eval library, SvelteKit server routes, stores, and 
 
 ## Surface today
 
-- Package public API: `package.json:6` exports the eval library, `package.json:8` exports server config, and `package.json:10` exposes `pi-do-eval`.
+- Package public API: `package.json:6` exports the eval library, `package.json:8` exports server config, and `package.json:10` exposes `do-eval`.
 - Eval public types: `src/lib/eval/types.ts:72` defines `EvalPlugin`, `src/lib/eval/types.ts:142` defines `EvalReport`, `src/lib/eval/types.ts:201` defines `SuiteReport`, `src/lib/eval/types.ts:267` defines `RunIndexEntry`, `src/lib/eval/types.ts:292` defines `EvalEvent`, and `src/lib/eval/types.ts:398` defines `LauncherConfig`.
 - Runner contract: `runEval(opts: RunOptions): Promise<RunResult>` starts Pi, streams optional live files/events, and returns parsed session state at `src/lib/eval/runner.ts:50`.
 - Report files: `writeReport(report, runDir)` writes `report.json` and `report.md` at `src/lib/eval/reporter.ts:17`; `updateRunIndex(runsDir, emit?)` derives `runs/index.json` from `report.json` or `status.json` at `src/lib/eval/reporter.ts:27`.
@@ -19,7 +19,7 @@ Refactor the codebase so the eval library, SvelteKit server routes, stores, and 
 - Editable suite/trial routes: file suite route bodies are cast at `src/routes/api/projects/[projectId]/suites/+server.ts:17` and `src/routes/api/projects/[projectId]/suites/[name]/+server.ts:15`; trial meta bodies are cast at `src/routes/api/projects/[projectId]/trials/[name]/+server.ts:18`.
 - SSE contract: `/api/projects/:projectId/events` streams `EvalEvent` JSON at `src/routes/api/projects/[projectId]/events/+server.ts:5`; `RunsWatcher` emits derived events from files at `src/lib/server/watcher.ts:10`.
 - Browser stores consume the same contracts with unchecked casts: project registry at `src/stores/projects.ts:13`, launcher config/action at `src/stores/launcher.ts:21`, run/suite/bench report loading at `src/stores/runs.ts:135`, and SSE events at `src/stores/sse.ts:50`.
-- Generated harness contract: `pi-do-eval init` writes `eval.config.ts`, `eval.ts`, plugin, trial config, and task files at `cli/init.ts:54`; templates define the generated `EvalConfig` at `cli/templates.ts:105` and generated run/report behavior at `cli/templates.ts:166`.
+- Generated harness contract: `do-eval init` writes `eval.config.ts`, `eval.ts`, plugin, trial config, and task files at `cli/init.ts:54`; templates define the generated `EvalConfig` at `cli/templates.ts:105` and generated run/report behavior at `cli/templates.ts:166`.
 - Existing proof patterns: file format round trips and traversal protection are tested in `test/suite-files.test.ts:29`, `test/trial-meta.test.ts:27`, `test/projects.test.ts:27`, `test/launcher.test.ts:61`, and `test/server.test.ts:26`.
 
 ## Surface after
@@ -95,7 +95,7 @@ Refactor the codebase so the eval library, SvelteKit server routes, stores, and 
 
 ```mermaid
 flowchart LR
-  CLI[pi-do-eval CLI + generated eval.ts] --> EvalLib[eval library]
+  CLI[do-eval CLI + generated eval.ts] --> EvalLib[eval library]
   EvalLib --> Files[(runs/, suites/, trials/, registry JSON)]
   Server[SvelteKit route handlers] --> Contracts[contract codecs + ApiResult]
   Server --> Files
@@ -143,7 +143,7 @@ flowchart LR
 - Route tests cover canonical project-scoped launcher, suites, trial meta, and project registry success/error responses.
 - Store tests cover rejected malformed responses and confirm state is not partially mutated on parse failure.
 - Compatibility tests load fixture-style legacy `report.json`, `runs/index.json`, `suites/index.json`, `projects.json`, and `active-runs.json`.
-- Generated harness tests confirm `pi-do-eval init` still writes the same public files and still produces viewer-readable run artifacts.
+- Generated harness tests confirm `do-eval init` still writes the same public files and still produces viewer-readable run artifacts.
 
 ## Sign-off
 

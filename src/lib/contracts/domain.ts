@@ -1,5 +1,4 @@
 import type { SuiteDefinition } from "$eval/suite-files.js";
-import type { TrialMeta } from "$eval/trial-meta.js";
 import type {
   AgentSnapshot,
   BenchIndexEntry,
@@ -44,13 +43,17 @@ import {
 
 const RUN_STATUSES = new Set(["completed", "timeout", "crashed", "stalled"]);
 const REGRESSION_STATUSES = new Set(["improved", "stable", "regressed", "baseline"]);
-const SUITE_SOURCES = new Set(["file", "config"]);
+const SUITE_SOURCES = new Set(["file"]);
 
 function optional<T extends object, K extends keyof T>(target: T, key: K, value: T[K] | undefined): void {
   if (value !== undefined) target[key] = value;
 }
 
 function parseTrialRef(value: unknown, path: string): ParseResult<{ trial: string; variant: string }> {
+  if (typeof value === "string") {
+    const trial = value.trim();
+    return trial ? ok({ trial, variant: "default" }) : fail(`${path} must be a non-empty trial name`);
+  }
   const object = asObject(value, path);
   if (!object.ok) return failIssues(object.issues);
   const trial = asString(object.value.trial, `${path}.trial`);
@@ -60,8 +63,15 @@ function parseTrialRef(value: unknown, path: string): ParseResult<{ trial: strin
   return ok({ trial: trial.value, variant: variant.value });
 }
 
+function serializeTrialRef(value: { trial: string; variant: string }): string | { trial: string; variant: string } {
+  return value.variant === "default" ? value.trial : value;
+}
+
 function parseTrialRefs(value: unknown, path: string): ParseResult<Array<{ trial: string; variant: string }>> {
-  if (!Array.isArray(value)) return fail(`${path} must be an array`);
+  if (!Array.isArray(value))
+    return fail(
+      `${path} must be an array\n  Suggestion: list trial refs as \`trials: [trialName]\` (default variant) or \`trials: [{ trial: "name", variant: "x" }]\``,
+    );
   const parsed = value.map((entry, index) => parseTrialRef(entry, `${path}[${index}]`));
   const issues = mergeIssues(...parsed);
   if (issues.length > 0) return failIssues(issues);
@@ -106,7 +116,7 @@ function parseNumberRecord(value: unknown, path: string): ParseResult<Record<str
   return issues.length > 0 ? failIssues(issues) : ok(result);
 }
 
-function parseProfileLayer(value: unknown, path: string): ParseResult<ProfileLayer> {
+export function parseProfileLayer(value: unknown, path: string): ParseResult<ProfileLayer> {
   const object = asObject(value, path);
   if (!object.ok) return failIssues(object.issues);
   const id = asString(object.value.id, `${path}.id`);
@@ -147,7 +157,7 @@ function parseExecutionProfileSnapshot(value: unknown, path: string): ParseResul
   });
 }
 
-function parseBudgetConfig(value: unknown, path: string): ParseResult<BudgetConfig | undefined> {
+export function parseBudgetConfig(value: unknown, path: string): ParseResult<BudgetConfig | undefined> {
   if (value === undefined) return ok(undefined);
   const object = asObject(value, path);
   if (!object.ok) return failIssues(object.issues);
@@ -192,7 +202,7 @@ function parseAgentSnapshot(value: unknown, path: string): ParseResult<AgentSnap
   return ok(result);
 }
 
-function parseOptionalAgentModel(
+export function parseOptionalAgentModel(
   value: unknown,
   path: string,
 ): ParseResult<{ provider?: string; model?: string; thinking?: string } | undefined> {
@@ -211,7 +221,7 @@ function parseOptionalAgentModel(
   });
 }
 
-function parseTimeouts(
+export function parseTimeouts(
   value: unknown,
   path: string,
 ): ParseResult<{ workerMs?: number; inactivityMs?: number; judgeMs?: number } | undefined> {
@@ -246,6 +256,16 @@ function parseEnvironment(value: unknown, path: string): ParseResult<RunEnvironm
     ...(runtime.value ? { runtime: runtime.value } : {}),
     ...(piVersion.value ? { piVersion: piVersion.value } : {}),
   });
+}
+
+// Subset of `TrialManifest` exposed over the HTTP API for the trial-detail
+// view. Kept narrow so the viewer only round-trips the fields it actually
+// edits (description, tags, enabled) — the rest of the manifest stays
+// authoritative on disk.
+export interface TrialMeta {
+  description?: string;
+  tags?: string[];
+  enabled?: boolean;
 }
 
 export const trialMetaCodec: JsonCodec<TrialMeta> = {
@@ -304,7 +324,12 @@ export const suiteDefinitionCodec: JsonCodec<SuiteDefinition> = {
     });
   },
   serialize(value) {
-    return value;
+    return {
+      name: value.name,
+      ...(value.description ? { description: value.description } : {}),
+      trials: value.trials.map(serializeTrialRef),
+      ...(value.regressionThreshold !== undefined ? { regressionThreshold: value.regressionThreshold } : {}),
+    } as unknown as SuiteDefinition;
   },
 };
 
@@ -529,15 +554,29 @@ function parseLauncherTrial(value: unknown, path: string): ParseResult<LauncherT
   const variants = asStringArray(object.value.variants, `${path}.variants`);
   const tags = asOptionalStringArray(object.value.tags, `${path}.tags`);
   const enabled = asOptionalBoolean(object.value.enabled, `${path}.enabled`);
-  const issues = mergeIssues(name, description, variants, tags, enabled);
+  const variantLabels = parseOptionalStringRecord(object.value.variantLabels, `${path}.variantLabels`);
+  const issues = mergeIssues(name, description, variants, tags, enabled, variantLabels);
   if (issues.length > 0) return failIssues(issues);
   return ok({
     name: name.value,
     description: description.value,
     variants: variants.value,
+    ...(variantLabels.value ? { variantLabels: variantLabels.value } : {}),
     ...(tags.value ? { tags: tags.value } : {}),
     ...(enabled.value !== undefined ? { enabled: enabled.value } : {}),
   });
+}
+
+function parseOptionalStringRecord(value: unknown, path: string): ParseResult<Record<string, string> | undefined> {
+  if (value === undefined) return ok(undefined);
+  const object = asObject(value, path);
+  if (!object.ok) return failIssues(object.issues);
+  const result: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(object.value)) {
+    if (typeof entry !== "string") return fail(`${path}.${key} must be a string`);
+    result[key] = entry;
+  }
+  return ok(result);
 }
 
 function parseLauncherSuiteDef(value: unknown, path: string): ParseResult<LauncherSuiteDef> {
@@ -550,13 +589,13 @@ function parseLauncherSuiteDef(value: unknown, path: string): ParseResult<Launch
   const source = asString(object.value.source, `${path}.source`);
   const issues = mergeIssues(name, description, trials, regressionThreshold, source);
   if (issues.length > 0) return failIssues(issues);
-  if (!SUITE_SOURCES.has(source.value)) return fail(`${path}.source must be file or config`);
+  if (!SUITE_SOURCES.has(source.value)) return fail(`${path}.source must be file`);
   return ok({
     name: name.value,
     ...(description.value ? { description: description.value } : {}),
     trials: trials.value,
     ...(regressionThreshold.value !== undefined ? { regressionThreshold: regressionThreshold.value } : {}),
-    source: source.value as "file" | "config",
+    source: source.value as "file",
   });
 }
 

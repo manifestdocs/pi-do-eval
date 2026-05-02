@@ -99,7 +99,7 @@ afterEach(() => {
 
 describe("regression status on SuiteIndexEntry", () => {
   it("marks the first suite run as baseline", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-regression-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-regression-"));
     tempDirs.push(runsDir);
 
     const first = makeSuite([{ report: makeReport("todo-cli", "typescript-vitest"), runDir: "r1" }], "suite-010");
@@ -115,7 +115,7 @@ describe("regression status on SuiteIndexEntry", () => {
   });
 
   it("derives improved/stable/regressed from suite report comparison", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-regression-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-regression-"));
     tempDirs.push(runsDir);
 
     const baseline = makeSuite([{ report: makeReport("todo-cli", "typescript-vitest"), runDir: "r1" }], "suite-base");
@@ -234,7 +234,7 @@ describe("regression status on SuiteIndexEntry", () => {
 
 describe("suite reports", () => {
   it("writes, indexes, and reloads suite runs", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-suites-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-suites-"));
     tempDirs.push(runsDir);
 
     const baseline = makeSuite(
@@ -287,7 +287,7 @@ describe("suite reports", () => {
   });
 
   it("keeps distinct suite directories when suite names and run ids collide textually", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-suite-dirs-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-suite-dirs-"));
     tempDirs.push(runsDir);
 
     const first = createSuiteReport(
@@ -606,7 +606,7 @@ describe("createSuiteReport with epochs", () => {
   });
 
   it("includes epochs in suite index entries", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-epochs-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-epochs-"));
     tempDirs.push(runsDir);
 
     const reports = [
@@ -905,7 +905,7 @@ describe("workerModel in suite reports", () => {
   });
 
   it("round-trips workerModel through suite index", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-idx-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-model-idx-"));
     tempDirs.push(runsDir);
 
     const suite = createSuiteReport(
@@ -925,7 +925,7 @@ describe("workerModel in suite reports", () => {
   });
 
   it("loadPreviousSuiteReport filters by workerModel", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-prev-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-model-prev-"));
     tempDirs.push(runsDir);
 
     const suiteA = createSuiteReport(
@@ -966,7 +966,7 @@ describe("workerModel in suite reports", () => {
   });
 
   it("loadLatestSuiteReport filters by workerModel", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-latest-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-model-latest-"));
     tempDirs.push(runsDir);
 
     const suiteA = createSuiteReport(
@@ -998,7 +998,7 @@ describe("workerModel in suite reports", () => {
   });
 
   it("old index entries without workerModel are skipped when filter is set", () => {
-    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-model-compat-"));
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-model-compat-"));
     tempDirs.push(runsDir);
 
     // Suite without workerModel (simulates old report)

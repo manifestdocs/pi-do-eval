@@ -39,7 +39,7 @@ function makeHarness(id: string, events: string[]): AgentHarness {
 
 describe("runEval", () => {
   it("runs workdir preparation after scaffold copy and before harness prepare", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runner-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-runner-"));
     const trialDir = path.join(tmpDir, "trial");
     const scaffoldDir = path.join(trialDir, "scaffold");
     const workDir = path.join(tmpDir, "work");
@@ -76,7 +76,7 @@ describe("runEval", () => {
   });
 
   it("cleans up harness state when prepare fails", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-runner-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-runner-"));
     const trialDir = path.join(tmpDir, "trial");
     const workDir = path.join(tmpDir, "work");
     const events: string[] = [];

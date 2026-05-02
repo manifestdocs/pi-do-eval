@@ -1,35 +1,23 @@
+// Why two loaders for eval.config.ts?
+//
+// project-runner.ts (CLI path) uses native `import()` because it runs under bun
+// or a tsx-loaded node, which both handle TypeScript natively. The viewer path
+// (this file) is reached from the *built* SvelteKit server bundle running on
+// plain node, where direct `import()` of a .ts file fails. So we spawn a child
+// process with the tsx loader and JSON-stringify the default export across
+// stdout. Both paths funnel the result through `parseProjectEvalConfig` so the
+// shape is validated regardless of which loader produced it.
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { loadFileSuites, mergeSuiteSources } from "$eval/suite-files.js";
-import { loadTrialMeta } from "$eval/trial-meta.js";
-import type { LauncherConfig, LauncherSuiteDef } from "$eval/types.js";
+import { parseProjectEvalConfig } from "$eval/load-config.js";
+import { loadFileSuites } from "$eval/suite-files.js";
+import { loadTrialManifest } from "$eval/trial-manifest.js";
+import type { LauncherConfig, LauncherSuiteDef, ProjectEvalConfig } from "$eval/types.js";
 
 type TrialRef = { trial: string; variant: string };
-
-interface TrialConfigModule {
-  default?: {
-    description?: string;
-    variants?: Record<string, unknown>;
-  };
-}
-
-interface EvalConfigModule {
-  default?: {
-    runSets?: Record<string, unknown>;
-    suites?: Record<string, unknown>;
-    models?: Array<{ provider?: string; model?: string }>;
-    worker?: { provider?: string; model?: string };
-    judge?: { provider?: string; model?: string };
-    timeouts?: { workerMs?: number; inactivityMs?: number; judgeMs?: number };
-    epochs?: number;
-    budgets?: Record<string, number | undefined>;
-    regressions?: { threshold?: number };
-    defaultLaunchType?: "suite" | "trial" | "bench";
-  };
-}
 
 const require = createRequire(import.meta.url);
 const IMPORT_DEFAULT_SCRIPT =
@@ -43,47 +31,44 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
   const trialNames = listTrials(trialsDir);
   const trials = await Promise.all(
     trialNames.map(async (trialName) => {
-      const config = await loadTrialConfig(evalDir, trialName);
-      const meta = loadTrialMeta(evalDir, trialName);
+      const manifest = loadTrialManifest(evalDir, trialName);
+      const variantEntries = Object.entries(manifest?.variants ?? {});
+      const variantLabels: Record<string, string> = {};
+      for (const [key, variant] of variantEntries) {
+        const label = variant.label;
+        if (typeof label === "string" && label.length > 0) variantLabels[key] = label;
+      }
       return {
         name: trialName,
-        description: meta?.description ?? config?.description ?? "",
-        variants: Object.keys(config?.variants ?? {}),
-        ...(meta?.tags ? { tags: meta.tags } : {}),
-        enabled: meta?.enabled ?? true,
+        description: manifest?.description ?? "",
+        variants: variantEntries.map(([key]) => key),
+        ...(Object.keys(variantLabels).length > 0 ? { variantLabels } : {}),
+        ...(manifest?.tags ? { tags: manifest.tags } : {}),
+        enabled: manifest?.enabled ?? true,
       };
     }),
   );
 
   const evalConfig = await loadEvalConfig(evalDir);
-  const configuredSuites = normalizeConfigSuites({
-    ...(evalConfig?.runSets ?? {}),
-    ...(evalConfig?.suites ?? {}),
-  });
   const fileSuites = loadFileSuites(evalDir);
-  const mergedSuites = mergeSuiteSources(configuredSuites, fileSuites);
-  validateSuiteReferences(mergedSuites, trials);
+  const fileSuiteMap = Object.fromEntries(fileSuites.map((suite) => [suite.name, suite.trials]));
+  validateSuiteReferences(fileSuiteMap, trials);
 
-  const fileSuiteNames = new Set(fileSuites.map((suite) => suite.name));
-  const suiteDefs: LauncherSuiteDef[] = Object.entries(mergedSuites).map(([suiteName, entries]) => {
-    const fileSuite = fileSuites.find((suite) => suite.name === suiteName);
-    const source = fileSuiteNames.has(suiteName) ? "file" : "config";
-    return {
-      name: suiteName,
-      ...(fileSuite?.description ? { description: fileSuite.description } : {}),
-      trials: entries,
-      ...(fileSuite?.regressionThreshold !== undefined ? { regressionThreshold: fileSuite.regressionThreshold } : {}),
-      source,
-    };
-  });
+  const suiteDefs: LauncherSuiteDef[] = fileSuites.map((suite) => ({
+    name: suite.name,
+    ...(suite.description ? { description: suite.description } : {}),
+    trials: suite.trials,
+    ...(suite.regressionThreshold !== undefined ? { regressionThreshold: suite.regressionThreshold } : {}),
+    source: "file",
+  }));
   suiteDefs.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     trials,
     suites: Object.fromEntries(
-      Object.entries(mergedSuites).map(([suiteName, entries]) => [
-        suiteName,
-        entries.map((entry) => ({ trial: entry.trial, variant: entry.variant })),
+      fileSuites.map((suite) => [
+        suite.name,
+        suite.trials.map((entry) => ({ trial: entry.trial, variant: entry.variant })),
       ]),
     ),
     suiteDefs,
@@ -98,51 +83,8 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
   };
 }
 
-export function getRunCommandForEvalDir(evalDir?: string): string {
-  if (!evalDir) return "bun eval.ts";
-
-  const packagePath = path.join(evalDir, "package.json");
-  if (!fs.existsSync(packagePath)) return "bun eval.ts";
-
-  try {
-    const pkg = JSON.parse(fs.readFileSync(packagePath, "utf-8")) as { scripts?: Record<string, unknown> };
-    if (typeof pkg.scripts?.eval === "string" && pkg.scripts.eval.trim()) {
-      return "npm run eval --";
-    }
-  } catch {
-    // Fall back to the legacy scaffold command when package metadata is absent or invalid.
-  }
-
-  return "bun eval.ts";
-}
-
-function normalizeConfigSuites(value: Record<string, unknown>): Record<string, TrialRef[]> {
-  const suites: Record<string, TrialRef[]> = {};
-  for (const [suiteName, entries] of Object.entries(value)) {
-    if (!Array.isArray(entries)) {
-      throw new Error(`Eval launcher contract violation: suite "${suiteName}" must be an array`);
-    }
-    suites[suiteName] = entries.map((entry, index) => normalizeTrialRef(entry, `suite "${suiteName}" entry ${index}`));
-  }
-  return suites;
-}
-
-function normalizeTrialRef(value: unknown, label: string): TrialRef {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Eval launcher contract violation: ${label} must be an object`);
-  }
-
-  const entry = value as Record<string, unknown>;
-  if (typeof entry.trial !== "string" || !entry.trial.trim()) {
-    throw new Error(`Eval launcher contract violation: ${label}.trial must be a non-empty string`);
-  }
-  if (typeof entry.variant !== "string" || !entry.variant.trim()) {
-    throw new Error(
-      `Eval launcher contract violation: ${label}.variant must be a non-empty string; use "default" for single-variant trials`,
-    );
-  }
-
-  return { trial: entry.trial, variant: entry.variant };
+export function getRunCommandForEvalDir(_evalDir?: string): string {
+  return "do-eval";
 }
 
 function validateSuiteReferences(
@@ -171,25 +113,20 @@ function validateSuiteReferences(
 function listTrials(trialsDir: string): string[] {
   return fs.readdirSync(trialsDir).filter((dirName) => {
     const candidate = path.join(trialsDir, dirName);
-    return fs.statSync(candidate).isDirectory() && fs.existsSync(path.join(candidate, "config.ts"));
+    return fs.statSync(candidate).isDirectory() && fs.existsSync(path.join(candidate, "trial.yaml"));
   });
 }
 
-async function loadTrialConfig(
-  evalDir: string,
-  trialName: string,
-): Promise<NonNullable<TrialConfigModule["default"]> | null> {
-  const configPath = path.join(evalDir, "trials", trialName, "config.ts");
-  if (!fs.existsSync(configPath)) return null;
-  const mod = (await importFresh(evalDir, configPath)) as TrialConfigModule;
-  return mod.default ?? null;
-}
-
-async function loadEvalConfig(evalDir: string): Promise<NonNullable<EvalConfigModule["default"]> | null> {
+async function loadEvalConfig(evalDir: string): Promise<ProjectEvalConfig | null> {
   const configPath = path.join(evalDir, "eval.config.ts");
   if (!fs.existsSync(configPath)) return null;
-  const mod = (await importFresh(evalDir, configPath)) as EvalConfigModule;
-  return mod.default ?? null;
+  const mod = (await importFresh(evalDir, configPath)) as { default?: unknown };
+  if (mod.default === undefined || mod.default === null) return null;
+  const parsed = parseProjectEvalConfig(mod.default, configPath);
+  if (!parsed.ok) {
+    throw new Error(`Eval launcher contract violation: ${parsed.issues.join("; ")}`);
+  }
+  return parsed.value;
 }
 
 async function importFresh(evalDir: string, filePath: string): Promise<unknown> {
@@ -223,7 +160,7 @@ function resolveTsxLoaderPath(evalDir: string): string {
   }
 
   throw new Error(
-    `Could not load eval config from ${evalDir}: tsx runtime not found. Install dependencies in the eval project or ensure pi-do-eval is installed with its runtime dependencies.`,
+    `Could not load eval config from ${evalDir}: tsx runtime not found. Install dependencies in the eval project or ensure do-eval is installed with its runtime dependencies.`,
   );
 }
 

@@ -1,16 +1,25 @@
 import { json } from "@sveltejs/kit";
-import { loadTrialMeta, type TrialMeta, writeTrialMeta } from "$eval/trial-meta.js";
-import { partialTrialMetaCodec } from "$lib/contracts/domain.js";
+import { loadTrialManifest, validateTrialName, writeTrialManifest } from "$eval/trial-manifest.js";
+import { partialTrialMetaCodec, type TrialMeta } from "$lib/contracts/domain.js";
 import { issuesMessage, jsonError, parseJsonBody } from "$lib/server/api.js";
 import { getRegisteredProject } from "$lib/server/projects.js";
 import type { RequestHandler } from "./$types.js";
+
+function manifestToMeta(manifest: ReturnType<typeof loadTrialManifest>): TrialMeta {
+  if (!manifest) return {};
+  return {
+    ...(manifest.description ? { description: manifest.description } : {}),
+    ...(manifest.tags ? { tags: manifest.tags } : {}),
+    ...(manifest.enabled !== undefined ? { enabled: manifest.enabled } : {}),
+  };
+}
 
 export const GET: RequestHandler = ({ params }) => {
   const project = getRegisteredProject(params.projectId);
   if (!project) return jsonError("Project not found", 404);
 
-  const meta = loadTrialMeta(project.evalDir, params.name);
-  return json({ meta: meta ?? {} });
+  const manifest = loadTrialManifest(project.evalDir, params.name);
+  return json({ meta: manifestToMeta(manifest) });
 };
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
@@ -21,16 +30,21 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
   if (!body.ok) {
     return jsonError(issuesMessage(body.issues), 400);
   }
-  const existing = loadTrialMeta(project.evalDir, params.name) ?? {};
-  const next: TrialMeta = {
-    description: body.value.description !== undefined ? body.value.description : existing.description,
-    tags: body.value.tags !== undefined ? body.value.tags : existing.tags,
-    enabled: body.value.enabled !== undefined ? body.value.enabled : existing.enabled,
-  };
 
   try {
-    writeTrialMeta(project.evalDir, params.name, next);
-    return json({ meta: next });
+    validateTrialName(params.name);
+    const existing = loadTrialManifest(project.evalDir, params.name) ?? {
+      description: "",
+      variants: { default: {} },
+    };
+    const nextManifest = {
+      ...existing,
+      ...(body.value.description !== undefined ? { description: body.value.description.trim() } : {}),
+      ...(body.value.tags !== undefined ? { tags: body.value.tags } : {}),
+      ...(body.value.enabled !== undefined ? { enabled: body.value.enabled } : {}),
+    };
+    writeTrialManifest(project.evalDir, params.name, nextManifest);
+    return json({ meta: manifestToMeta(nextManifest) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to write trial meta";
     return json({ error: message }, { status: 400 });

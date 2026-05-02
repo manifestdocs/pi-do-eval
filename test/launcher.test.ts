@@ -43,7 +43,7 @@ const launcherConfig: LauncherConfig = {
 };
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-launcher-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-launcher-"));
   process.env.PI_DO_EVAL_CONFIG_HOME = path.join(tmpDir, "config-home");
   fs.mkdirSync(path.join(tmpDir, "runs"), { recursive: true });
   nextChild = null;
@@ -67,7 +67,7 @@ describe("spawnRun", () => {
     const result = spawnRun(
       "project-1",
       { type: "trial", trial: "example", variant: "default" },
-      "bun eval.ts",
+      "do-eval",
       tmpDir,
       launcherConfig,
     );
@@ -77,7 +77,7 @@ describe("spawnRun", () => {
     expect(getRunStatus("project-1")).toEqual({
       active: true,
       id: runId,
-      command: "bun eval.ts run --trial example --variant default",
+      command: `do-eval trial example --variant default --project ${tmpDir}`,
     });
 
     const registryPath = getActiveRunsRegistryPath();
@@ -95,8 +95,8 @@ describe("spawnRun", () => {
     expect(getRunStatus("project-1")).toEqual({ active: false });
     expect(JSON.parse(fs.readFileSync(registryPath, "utf-8"))).toEqual({});
     expect(spawn).toHaveBeenCalledWith(
-      "bun",
-      ["eval.ts", "run", "--trial", "example", "--variant", "default"],
+      "do-eval",
+      ["trial", "example", "--variant", "default", "--project", tmpDir],
       expect.objectContaining({ cwd: tmpDir }),
     );
   });
@@ -105,18 +105,12 @@ describe("spawnRun", () => {
     const child = new FakeChildProcess();
     nextChild = child;
 
-    const result = spawnRun(
-      "project-npm",
-      { type: "bench", suite: "quick" },
-      "npm run eval --",
-      tmpDir,
-      launcherConfig,
-    );
+    const result = spawnRun("project-npm", { type: "bench", suite: "quick" }, "do-eval", tmpDir, launcherConfig);
 
     expect(result).toEqual({ ok: true, id: expect.stringMatching(/^run-/) });
     expect(spawn).toHaveBeenCalledWith(
-      "npm",
-      ["run", "eval", "--", "bench", "quick"],
+      "do-eval",
+      ["bench", "quick", "--project", tmpDir],
       expect.objectContaining({ cwd: tmpDir }),
     );
 
@@ -133,7 +127,7 @@ describe("killActiveRun", () => {
     const result = spawnRun(
       "project-2",
       { type: "trial", trial: "example", variant: "default" },
-      "bun eval.ts",
+      "do-eval",
       tmpDir,
       launcherConfig,
     );
@@ -158,7 +152,7 @@ describe("recoverActiveRuns", () => {
           id: "run-ghost",
           projectId: "ghost",
           pid: 999_999,
-          command: "bun eval.ts run --trial example --variant default",
+          command: `do-eval trial example --variant default --project ${tmpDir}`,
           startedAt: "2026-01-01T00:00:00Z",
           runDir: path.join(tmpDir, "runs", "run-ghost"),
         },

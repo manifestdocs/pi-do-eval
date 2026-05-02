@@ -1,29 +1,29 @@
-# Pi, do Eval 😈😇
+# Do Eval 😈😇
 
 A framework for building evaluation harnesses for coding agents. Use it to
 measure agent behavior over a consistent set of trials, compare configurations,
 and catch regressions over time.
 
-A harness built with `pi-do-eval` can:
+A harness built with `do-eval` can:
 
 - run a coding agent (Pi or Codex out of the box; additional agents via
-  `registerHarness`) against the extension or plugin under test
+  `registerHarness`) against the extension, plugin, or skill pack under test
 - parse the agent's JSONL session into tool calls, file writes, and
   domain-specific events
 - run deterministic verification
 - score with an optional LLM judge
-- compare profiles side-by-side as benchmarks, or track a single profile over
-  time as a regression timeline
+- compare profiles side-by-side as Bench runs, or track a single profile over
+  time as a Regression timeline
 
-It ships a small scaffold command, `pi-do-eval init`, which generates a
+It ships a small scaffold command, `do-eval init`, which generates a
 working harness you can customize.
 
 ## How it works
 
 1. The harness picks an **agent adapter** (`pi` or `codex` — see
    `src/lib/eval/harnesses/`) and invokes the matching CLI against the
-   extension or plugin under test.
-2. `pi-do-eval` parses the JSONL session into tool calls, file writes, and
+   extension, plugin, or skill pack under test.
+2. `do-eval` parses the JSONL session into tool calls, file writes, and
    optional plugin-specific events.
 3. Your plugin runs independent verification after the worker session
    completes.
@@ -32,65 +32,84 @@ working harness you can customize.
 5. Deterministic plugin scores and optional judge scores are combined into a
    final report for agent improvement and non-regression tracking.
 
-Note: the eval prompt is deliberately minimal; the agent's own system prompt
-or installed plugin should drive the behavior.
+Note: the eval prompt is deliberately minimal; the agent's own system prompt,
+installed plugin, or installed skill pack should drive the behavior.
 
 ## Getting Started
 
-`pi-do-eval init` is the fastest way to scaffold a harness once you already have a Pi extension repo. It is not a zero-config demo: `pi-do-eval` evaluates an extension you already have, and after scaffolding you still need to define real scoring and trials for that extension.
+`do-eval init` is the fastest way to scaffold a harness once you already
+have an agent extension, plugin, or skill-pack repo. It is not a zero-config
+demo: `do-eval` evaluates behavior from something you already ship, and
+after scaffolding you still need to define real scoring and trials for that
+project.
 
 Before you run it:
 
-- be in the root of the Pi extension repo you want to evaluate
-- have an extension entry point already checked into that repo
+- be in the root of the repo you want to evaluate
+- have the extension, plugin, skill pack, or profile layers already checked in
 - expect to edit the generated plugin and trial files before the eval is meaningful
 
 To scaffold the harness:
 
 ```bash
-npx pi-do-eval init
+npx do-eval init
 cd eval
 npm install
 ```
 
-`pi-do-eval init` creates:
+`do-eval init` creates:
 
 ```text
 eval/
   package.json
   tsconfig.json
-  eval.config.ts
-  eval.ts
+  eval.config.ts          # project policy: profiles, benches, models, budgets
   plugins/
-    <your-extension>.ts   # eval plugin; points at your real extension entry
+    <your-project>.ts     # optional project scoring/prompt hooks
   trials/
     example/
-      config.ts           # placeholder trial config
+      trial.yaml          # YAML trial manifest
       task.md             # placeholder task
+  suites/
+    small.yaml            # YAML suite definition
 ```
 
-The generated `eval.ts` is a complete harness: it creates timestamped run directories, uses a fresh `workdir/` for each run, writes reports, updates the viewer index, and wires in live snapshots for the viewer.
+Do Eval owns the runner: it creates timestamped run directories, uses a fresh `workdir/` for each run, writes reports, updates the viewer index, and wires in live snapshots for the viewer. Project TypeScript is reserved for `eval.config.ts` policy and optional plugin scoring/prompt hooks.
 
-After scaffolding, you still need to do some setup work:
+The only TypeScript file every eval project needs is `eval.config.ts`.
+Everything else is conditional:
 
-1. Edit `plugins/<your-extension>.ts` to implement scoring and optional verification.
-2. Replace the example trial with a real task for your extension.
-3. Install the eval package dependencies with `cd eval && npm install`.
-4. Run the scaffolded example once to smoke-test the harness wiring.
+- `eval/plugins/<name>.ts` is for project-specific scoring, verification,
+  prompt construction, file classification, or after-run artifacts.
+- `eval/test/*.test.ts` is for tests of project policy or plugin behavior.
+- `eval/vitest.config.ts` is only needed when the project has tests that need
+  Vitest configuration.
 
-The generated example plugin and trial are placeholders. Running them immediately is useful as a harness smoke test, but not yet as a meaningful evaluation of your extension.
+Suite membership and trial metadata belong in YAML data files, not TypeScript.
+Generic Trial, Regression, and Bench execution belongs in Do Eval itself.
+
+After scaffolding, use the same authoring loop for every project:
+
+1. Define trials with `eval/trials/<name>/trial.yaml`.
+2. Create suites from those trials, either by editing `eval/suites/*.yaml` or with `do-eval suite create`.
+3. Run `do-eval trial`, `do-eval regression`, or `do-eval bench`.
+4. Inspect Regression and Bench results in the UI.
+
+The generated example plugin, trial, and `small` suite are placeholders. Running them immediately is useful as a harness smoke test, but not yet as a meaningful evaluation of your project.
 
 Once the harness is scaffolded, use:
 
 ```bash
-npm run eval -- list
-npm run eval -- run --trial example --variant default
-npm run view
+do-eval list --project .
+do-eval trial example --variant default --project .
+do-eval suite create small example --force --project .
+do-eval regression small --project .
+do-eval ui --project .
 ```
 
-`npm run view` runs `eval view`, which now opens the global viewer and auto-registers the current project.
+`do-eval ui --project .` opens the global viewer and auto-registers the current project.
 
-If you want a real example beyond the scaffold, see the `eval/` directory in [pi-tdd](https://github.com/kreek/pi-tdd/tree/main/eval). The rest of this README explains the lower-level APIs the scaffold uses.
+If you want a real example beyond the scaffold, see the `eval/` directory in [pi-proof](https://github.com/kreek/pi-proof/tree/main/eval). The rest of this README explains the lower-level APIs the scaffold uses.
 
 ## Viewer
 
@@ -98,20 +117,20 @@ The web UI is now a global multi-project viewer. It keeps a small per-user regis
 
 Project resolution follows convention over configuration:
 
-- if you add a Pi extension repo root, `pi-do-eval` looks for `./eval`
+- if you add a project repo root, `do-eval` looks for `./eval`
 - if you add a direct eval directory, it uses that directory as-is
-- `eval view` from a generated harness auto-adds the current project and selects it
+- `do-eval ui --project <path>` auto-adds that project and selects it
 
 Common commands:
 
 ```bash
-pi-do-eval ui
-pi-do-eval ui --project ~/sandbox/pi-tdd
-pi-do-eval project add ~/sandbox/pi-tdd
-pi-do-eval project add ~/sandbox/pi-tdd/eval
-pi-do-eval project list
-pi-do-eval project use ~/sandbox/pi-tdd
-pi-do-eval project remove ~/sandbox/pi-tdd
+do-eval ui
+do-eval ui --project ~/sandbox/pi-proof
+do-eval project add ~/sandbox/pi-proof
+do-eval project add ~/sandbox/pi-proof/eval
+do-eval project list
+do-eval project use ~/sandbox/pi-proof
+do-eval project remove ~/sandbox/pi-proof
 ```
 
 The project registry is stored at:
@@ -120,41 +139,68 @@ The project registry is stored at:
 - otherwise `$XDG_CONFIG_HOME/pi-do-eval/projects.json`
 - otherwise `~/.config/pi-do-eval/projects.json`
 
-### Adding Pi Extension Projects
+### Suites
+
+Suites are authored only as YAML files under `eval/suites/*.yaml`. `eval.config.ts` still owns worker, judge, model, profile, Bench, timeout, and budget policy, but suite membership lives in data files so adding a suite does not require editing TypeScript.
+
+A suite keeps `name`, optional `description`, optional `regressionThreshold`, and explicit trial references. Bare strings mean the trial's `default` variant; use an object when selecting another variant.
+
+```yaml
+name: small
+description: Fast smoke coverage
+trials:
+  - example
+  - trial: example
+    variant: edge
+```
+
+The global CLI manages those files from either a project root or an `eval/` directory:
+
+```bash
+do-eval suite list --project ~/sandbox/my-agent-project
+do-eval suite show small --project ~/sandbox/my-agent-project
+do-eval suite create small example example:edge --project ~/sandbox/my-agent-project
+do-eval suite add small another-trial --project ~/sandbox/my-agent-project
+do-eval suite remove small example:edge --project ~/sandbox/my-agent-project
+```
+
+### Adding Projects
 
 The usual workflow is:
 
-1. Start from the root of a Pi extension repo.
-2. Run `pi-do-eval init` once to scaffold `eval/`.
+1. Start from the root of the extension, plugin, or skill-pack repo.
+2. Run `do-eval init` once to scaffold `eval/`.
 3. Work inside `eval/` to define plugins, trials, and suites.
-4. Add the project to the viewer with either `eval view`, `pi-do-eval ui --project /path/to/repo`, or `pi-do-eval project add /path/to/repo`.
+4. Add the project to the viewer with either `do-eval ui --project /path/to/repo` or `do-eval project add /path/to/repo`.
 
 Examples:
 
 ```bash
-cd ~/sandbox/pi-tdd
-npx pi-do-eval init
+cd ~/sandbox/my-agent-project
+npx do-eval init
 cd eval
 npm install
-npm run eval -- run --trial example --variant default
-npm run view
+do-eval trial example --variant default --project .
+do-eval suite create small example --force --project .
+do-eval regression small --project .
+do-eval ui --project .
 ```
 
 For an existing project that already has an `eval/` directory:
 
 ```bash
-pi-do-eval project add ~/sandbox/my-pi-extension
-pi-do-eval ui
+do-eval project add ~/sandbox/my-agent-project
+do-eval ui
 ```
 
 ### Hot Reload
 
-`pi-do-eval ui` and `eval view` run the built production server. For hot reload while working on the viewer itself, run the dev server from a local checkout of this repository:
+`do-eval ui` runs the built production server. For hot reload while working on the viewer itself, run the dev server from a local checkout of this repository:
 
 ```bash
-cd /path/to/pi-do-eval
+cd /path/to/do-eval
 npm install
-pi-do-eval ui-dev --project ~/sandbox/pi-tdd --port 4242
+do-eval ui-dev --project ~/sandbox/pi-proof --port 4242
 ```
 
 That starts the SvelteKit/Vite dev server with HMR and selects the target project in the registry before launch.
@@ -163,10 +209,10 @@ That starts the SvelteKit/Vite dev server with HMR and selects the target projec
 
 The viewer's left nav has two top-level tabs that answer different questions:
 
-- **Bench** — cross-profile comparisons (one suite, two or more profiles).
+- **Bench**: cross-profile comparisons (one suite, two or more profiles).
   Each row is one comparison; the score badge is the treatment profile's
   average and the delta is treatment-vs-baseline.
-- **Regression** — a single profile drifting against itself over time.
+- **Regression**: a single profile drifting against itself over time.
   Groups are keyed by `(suite, profile)` so two profiles with different
   layers don't share a timeline; the delta is latest-vs-prior for the same
   profile.
@@ -186,18 +232,17 @@ const config: EvalConfig = {
 };
 ```
 
-`"suite"` shows as **Regression** in the launcher (the value stays "suite"
-on the wire because the underlying `RunRequest.type` is unchanged). Set this
-to whichever tab a new contributor should see first when they open your
-project — comparison-driven projects pick `bench`, drift-tracking projects
-pick `suite`.
+`"suite"` is the wire value for **Regression** because the underlying
+`RunRequest.type` is unchanged. Set this to whichever tab a new contributor
+should see first when they open your project: comparison-driven projects pick
+`bench`, drift-tracking projects pick `suite`.
 
 ## Plugin API
 
-The plugin is where you define what "good" looks like for your extension. It implements `EvalPlugin`:
+The eval plugin is where you define what "good" looks like for the project under test. It implements `EvalPlugin`:
 
 ```typescript
-interface EvalPlugin {
+interface EvalPlugin<TVariant extends TrialVariant = TrialVariant> {
   name: string;
   extensionPath: string;
 
@@ -210,16 +255,55 @@ interface EvalPlugin {
   // Required: deterministic scoring from parsed session data
   scoreSession(session: EvalSession, verify: VerifyResult): PluginScoreResult;
 
+  // Optional: override the worker prompt (default: "Implement the task in <taskFile>")
+  buildPrompt?(context: EvalPluginBuildPromptContext<TVariant>): string;
+
   // Required: build the prompt sent to the LLM judge
   buildJudgePrompt(taskDescription: string, workDir: string): string;
 
   // Optional: run independent verification (for example, tests, lint, build)
   verify?(workDir: string): VerifyResult;
 
+  // Optional: write artifacts derived from the run (markdown summaries, snapshots, etc.)
+  afterRun?(context: EvalPluginAfterRunContext<TVariant>): void | Promise<void>;
+
+  // Optional: receive trial-level config (taskCount, isMonorepo, full manifest/variant)
+  // Called once before scoring, after the agent run completes.
+  configure?(context: EvalPluginConfigureContext<TVariant>): void;
+
   // Optional: custom summary lines for reports
   formatSummary?(session: EvalSession): string[];
 }
 ```
+
+`EvalPlugin` is parameterised over the variant shape your `trial.yaml` files
+carry. Declare an interface that extends `TrialVariant` with the fields you
+read, and you get typed access in `configure`, `buildPrompt`, and `afterRun`
+without `as` casts. The default (`TrialVariant`) is opaque, so plugins that
+don't need typed variants can omit the type parameter.
+
+```typescript
+interface PiProofVariant extends TrialVariant {
+  stacks?: Array<{ language: string; testFramework: string }>;
+}
+
+const plugin: EvalPlugin<PiProofVariant> = {
+  // ...
+  configure({ variant, taskCount }) {
+    // variant.stacks is typed; no cast needed
+    if (Array.isArray(variant.stacks) && variant.stacks.length > 0) {
+      // ...
+    }
+  },
+};
+```
+
+`configure` lets a plugin react to per-trial settings carried in `trial.yaml` —
+for example, to read `taskCount` for proportional scoring or `isMonorepo`
+(derived from a multi-entry `stacks` array on the variant) to switch
+verification strategies. The full `manifest` and `variant` are available on the
+context so plugins can reach into project-specific YAML fields without a
+back-channel.
 
 `scoreSession` returns deterministic scores, weights, and findings:
 
@@ -242,7 +326,7 @@ If you use the scaffold, your plugin will live at `eval/plugins/<name>.ts`. Reso
 
 ```typescript
 import * as path from "node:path";
-import type { EvalPlugin } from "pi-do-eval";
+import type { EvalPlugin } from "do-eval";
 
 export const plugin: EvalPlugin = {
   name: "my-extension",
@@ -304,24 +388,24 @@ The library itself only assumes one convention:
 
 Think of `trialDir/scaffold/` as that reset point: it is the baseline state that gets copied into the working directory at the start of a run.
 
-That copy step is not, by itself, a full reset step. `runEval` does not delete leftovers from a previous run, so reproducibility still depends on using a fresh `workDir` each time or cleaning it yourself. The scaffolded harness solves this by creating a new timestamped `workdir/` for every run.
+That copy step is not, by itself, a full reset step. `runEval` does not delete leftovers from a previous run, so reproducibility still depends on using a fresh `workDir` each time or cleaning it yourself. The built-in `do-eval trial`, `regression`, and `bench` commands solve this by creating a new timestamped `workdir/` for every run.
 
-A typical trial in the scaffolded harness looks like:
+A typical trial for the first-class runner looks like:
 
 ```text
 trials/stack-calc/
-  config.ts
+  trial.yaml
   task.md
   scaffold/
     package.json
     tsconfig.json
 ```
 
-Outside the scaffold, you can organize trials however you want. The only thing `runEval` needs is a `trialDir`.
+The first-class runner reads `trial.yaml`; lower-level `runEval` APIs still only need a `trialDir` when you are building custom tooling.
 
-## Build Your Own Runner
+## Lower-Level APIs
 
-If you do not want to use `pi-do-eval init`, you can wire the pieces together yourself. The example below is intentionally complete enough to produce a functional run directory and viewer index.
+Most projects should use the first-class `do-eval trial`, `regression`, and `bench` commands. The lower-level APIs remain available when you are building custom tooling around the runner.
 
 ```typescript
 import * as fs from "node:fs";
@@ -334,7 +418,7 @@ import {
   scoreSession,
   updateRunIndex,
   writeReport,
-} from "pi-do-eval";
+} from "do-eval";
 import { plugin } from "./plugin.js";
 
 const RUNS_DIR = path.resolve("runs");
@@ -426,16 +510,14 @@ If the plugin emits invalid scores or weights, `scoreSession()` reports scoring 
 
 ## Reports And Viewer
 
-The library does not create a `runs/` directory by itself. That is a harness convention.
-
-If you follow the scaffolded `eval.ts` pattern, a typical run directory looks like:
+The first-class runner creates `runs/` under the eval directory by default, or under `runsDir` when the project config sets one. A typical run directory looks like:
 
 | File | Written by | Description |
 |------|------------|-------------|
 | `report.json` | `writeReport()` | Structured scores and metadata |
 | `report.md` | `writeReport()` | Human-readable report |
-| `session.jsonl` | your harness | Raw Pi session for debugging |
-| `workdir/` | your harness | The working directory the agent operated in |
+| `session.jsonl` | Do Eval runner | Raw Pi session for debugging |
+| `workdir/` | Do Eval runner | The working directory the agent operated in |
 | `stderr.txt` | optional | Worker stderr, if you choose to persist it |
 
 `updateRunIndex(runsDir)` writes `runs/index.json`, which the viewer reads.
@@ -496,13 +578,13 @@ const judgeResult = await runJudge({
 
 When omitted, Pi uses its defaults from `~/.pi/agent/settings.json`.
 
-For worker sessions, the parser extracts the actual model/provider from `message_start` events and stores them on `EvalSession.modelInfo`. The scaffolded harness uses that for worker report metadata.
+For worker sessions, the parser extracts the actual model/provider from `message_start` events and stores them on `EvalSession.modelInfo`. The first-class runner uses that for worker report metadata.
 
-Judge metadata is different: `runJudge` currently returns scores, reasons, and findings, but not parsed model info. The scaffolded harness records the configured judge model string in report metadata.
+Judge metadata is different: `runJudge` currently returns scores, reasons, and findings, but not parsed model info. The first-class runner records the configured judge model string in report metadata.
 
 ## Agent Adapters
 
-`pi-do-eval` ships two agent adapters under
+`do-eval` ships two agent adapters under
 [`src/lib/eval/harnesses/`](src/lib/eval/harnesses/): `pi` and `codex`. Each
 profile in `eval.config.ts` picks one via `agent.harness` and configures it
 via a typed `agent` block. To add an adapter for another agent (e.g. Claude
@@ -540,7 +622,7 @@ shape; the Pi and Claude adapters expose their own per-runtime options.
 
 Extensions under eval can execute arbitrary code. Sandboxing constrains the Pi subprocess so that it can access only paths you explicitly allow.
 
-`pi-do-eval` uses [ai-jail](https://github.com/anthropics/ai-jail), a lightweight wrapper around OS-native sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux).
+`do-eval` uses [ai-jail](https://github.com/anthropics/ai-jail), a lightweight wrapper around OS-native sandboxing primitives (`sandbox-exec` on macOS, `bubblewrap` on Linux).
 
 ### Installing ai-jail
 
@@ -554,7 +636,7 @@ brew install ai-jail
 cargo install ai-jail
 ```
 
-If `ai-jail` is not on `PATH`, `pi-do-eval` prints a warning and runs unsandboxed.
+If `ai-jail` is not on `PATH`, `do-eval` prints a warning and runs unsandboxed.
 
 ### Enabling the sandbox
 
@@ -608,7 +690,7 @@ const result = await runEval({
 
 ## See Also
 
-- [pi-tdd](https://github.com/manifestdocs/pi-tdd): a real extension with a full `eval/` harness built on `pi-do-eval`
+- [pi-proof](https://github.com/kreek/pi-proof/tree/main/eval): a real plugin eval project built on `do-eval`
 
 ## Development
 

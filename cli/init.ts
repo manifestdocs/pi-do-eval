@@ -12,7 +12,7 @@ export class InitError extends Error {}
 function detectExtension(cwd: string): ExtensionInfo {
   const pkgPath = path.join(cwd, "package.json");
   if (!fs.existsSync(pkgPath)) {
-    throw new InitError("No package.json found. Run this from the root of a Pi extension repo.");
+    throw new InitError("No package.json found. Run this from the root of an agent project repo.");
   }
 
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -26,12 +26,12 @@ function detectExtension(cwd: string): ExtensionInfo {
   return { name, extensionPath };
 }
 
-function resolvePiDoEvalRef(): string {
-  // Find where pi-do-eval actually lives and compute a file: reference from eval/
+function resolveDoEvalRef(): string {
+  // Find where do-eval actually lives and compute a file: reference from eval/
   try {
-    const piDoEvalPkg = path.dirname(require.resolve("pi-do-eval/package.json", { paths: [process.cwd()] }));
+    const doEvalPkg = path.dirname(require.resolve("do-eval/package.json", { paths: [process.cwd()] }));
     const evalDir = path.join(process.cwd(), "eval");
-    const rel = path.relative(evalDir, piDoEvalPkg);
+    const rel = path.relative(evalDir, doEvalPkg);
     return `file:${rel}`;
   } catch {
     // Not installed locally, assume npm
@@ -57,22 +57,22 @@ export async function initEvalDir(cwd: string): Promise<InitResult> {
   }
 
   const ext = detectExtension(cwd);
-  const piDoEvalRef = resolvePiDoEvalRef();
+  const doEvalRef = resolveDoEvalRef();
 
   // Create directories
   fs.mkdirSync(path.join(evalDir, "plugins"), { recursive: true });
   fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
+  fs.mkdirSync(path.join(evalDir, "suites"), { recursive: true });
 
   // Write files
-  writeFile(path.join(evalDir, "package.json"), templates.packageJson(ext.name, piDoEvalRef));
+  writeFile(path.join(evalDir, "package.json"), templates.packageJson(ext.name, doEvalRef));
   writeFile(path.join(evalDir, "tsconfig.json"), templates.tsconfig());
   writeFile(path.join(evalDir, ".gitignore"), templates.gitignore());
-  writeFile(path.join(evalDir, "types.ts"), templates.types());
   writeFile(path.join(evalDir, "eval.config.ts"), templates.evalConfig());
-  writeFile(path.join(evalDir, "eval.ts"), templates.evalScript());
   writeFile(path.join(evalDir, "plugins", `${ext.name}.ts`), templates.pluginSkeleton(ext.name, ext.extensionPath));
-  writeFile(path.join(evalDir, "trials", "example", "config.ts"), templates.trialConfig(ext.name));
+  writeFile(path.join(evalDir, "trials", "example", "trial.yaml"), templates.trialManifest(ext.name));
   writeFile(path.join(evalDir, "trials", "example", "task.md"), templates.taskMd());
+  writeFile(path.join(evalDir, "suites", "small.yaml"), templates.suiteSmall());
 
   return { evalDir, extensionName: ext.name };
 }
@@ -87,7 +87,9 @@ export async function runInit(cwd = process.cwd()) {
     console.log("  npm install");
     console.log(`  # Edit plugins/${result.extensionName}.ts to implement scoring`);
     console.log("  # Edit trials/example/task.md with a real task");
-    console.log("  npm run eval -- run --trial example --variant default");
+    console.log("  do-eval trial example --variant default --project .");
+    console.log("  do-eval suite create small example --project .");
+    console.log("  do-eval regression small --project .");
   } catch (error) {
     if (error instanceof InitError) {
       console.error(error.message);

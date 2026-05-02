@@ -79,14 +79,30 @@ describe("contract codecs", () => {
     expect(parsed.value.activeProjectId).toBe("p1");
   });
 
-  it("validates suite definition trial refs", () => {
-    expect(
-      suiteDefinitionCodec.parse({
-        name: "smoke",
-        trials: [{ trial: "example", variant: "default" }],
-      }).ok,
-    ).toBe(true);
+  it("validates and normalizes suite definition trial refs", () => {
+    const parsed = suiteDefinitionCodec.parse({
+      name: "smoke",
+      trials: ["example", { trial: "other", variant: "edge" }],
+    });
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.value?.trials).toEqual([
+      { trial: "example", variant: "default" },
+      { trial: "other", variant: "edge" },
+    ]);
     expect(suiteDefinitionCodec.parse({ name: "smoke", trials: [{ trial: "example" }] }).ok).toBe(false);
+  });
+
+  it("serializes default suite trial refs as strings", () => {
+    expect(
+      suiteDefinitionCodec.serialize({
+        name: "smoke",
+        trials: [
+          { trial: "example", variant: "default" },
+          { trial: "other", variant: "edge" },
+        ],
+      }),
+    ).toEqual({ name: "smoke", trials: ["example", { trial: "other", variant: "edge" }] });
   });
 
   it("keeps tolerant trial meta loading separate from strict route meta parsing", () => {

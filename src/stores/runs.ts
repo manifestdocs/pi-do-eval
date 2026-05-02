@@ -11,6 +11,7 @@ import type {
   SuiteIndexEntry,
   SuiteReport,
 } from "$eval/types.js";
+import { benchComparisonAverage, benchFirstAverageDelta } from "$lib/bench-view.js";
 import {
   benchIndexCodec,
   benchReportCodec,
@@ -22,7 +23,6 @@ import {
 } from "$lib/contracts/domain.js";
 import { readJson } from "./api.js";
 import { activeProjectId, projectApiPath } from "./projects.js";
-import { benchComparisonAverage, benchFirstAverageDelta } from "$lib/bench-view.js";
 
 // -- Raw data stores -----------------------------------------------------------
 

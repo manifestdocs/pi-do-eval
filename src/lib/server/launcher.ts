@@ -29,11 +29,23 @@ const ACTIVE_RUNS_FILE = "active-runs.json";
 const activeRuns = new Map<string, ActiveRun>();
 
 function getConfigRoot(): string {
-  return process.env.PI_DO_EVAL_CONFIG_HOME ?? process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
+  // PI_DO_EVAL_CONFIG_HOME is the documented env var and the canonical config
+  // dir name is `pi-do-eval/`. The legacy `DO_EVAL_CONFIG_HOME` env var and
+  // `do-eval/` directory are accepted for backwards compatibility.
+  return (
+    process.env.PI_DO_EVAL_CONFIG_HOME ??
+    process.env.DO_EVAL_CONFIG_HOME ??
+    process.env.XDG_CONFIG_HOME ??
+    path.join(os.homedir(), ".config")
+  );
 }
 
 export function getActiveRunsRegistryPath(): string {
-  return path.join(getConfigRoot(), "pi-do-eval", ACTIVE_RUNS_FILE);
+  const canonical = path.join(getConfigRoot(), "pi-do-eval", ACTIVE_RUNS_FILE);
+  if (fs.existsSync(canonical)) return canonical;
+  const legacy = path.join(getConfigRoot(), "do-eval", ACTIVE_RUNS_FILE);
+  if (fs.existsSync(legacy)) return legacy;
+  return canonical;
 }
 
 function loadActiveRunsRegistry(): Record<string, PersistedActiveRun> {
@@ -141,16 +153,18 @@ export function killActiveRun(projectId: string, options: { forceAfterMs?: numbe
   activeRuns.delete(projectId);
 }
 
-function buildArgs(request: RunRequest): string[] {
+function buildArgs(request: RunRequest, evalDir: string): string[] {
   const args: string[] = [];
 
   if (request.type === "trial") {
-    args.push("run", "--trial", request.trial, "--variant", request.variant);
+    args.push("trial", request.trial, "--variant", request.variant);
   } else if (request.type === "suite") {
-    args.push("run", request.suite);
+    args.push("regression", request.suite);
   } else if (request.type === "bench") {
     args.push("bench", request.suite);
   }
+
+  args.push("--project", evalDir);
 
   if (request.model) {
     args.push("--model", request.model);
@@ -200,7 +214,7 @@ export function spawnRun(
     return { ok: false, error: "Launcher command is empty" };
   }
   const baseArgs = parts.slice(1);
-  const runArgs = buildArgs(request);
+  const runArgs = buildArgs(request, cwd);
   const allArgs = [...baseArgs, ...runArgs];
 
   const id = `run-${Date.now()}`;

@@ -19,6 +19,15 @@ export {
 export { parseSessionLines } from "./parser.js";
 export { type ProcessRunOptions, type ProcessRunResult, runProcessWithTimeouts } from "./process.js";
 export {
+  type ProjectCommandOptions,
+  type ProjectRunResult,
+  runProjectBenchCommand,
+  runProjectList,
+  runProjectModelBenchCommand,
+  runProjectRegressionCommand,
+  runProjectTrialCommand,
+} from "./project-runner.js";
+export {
   formatMarkdown,
   printAggregatedSummary,
   printSuiteComparison,
@@ -32,8 +41,8 @@ export { scoreSession } from "./scorer.js";
 export {
   deleteFileSuite,
   loadFileSuites,
-  mergeSuiteSources,
   type SuiteDefinition,
+  validateSuiteDefinition,
   writeFileSuite,
 } from "./suite-files.js";
 export {
@@ -51,10 +60,17 @@ export {
   updateSuiteIndex,
   writeSuiteReport,
 } from "./suites.js";
-export { loadTrialMeta, type TrialMeta, writeTrialMeta } from "./trial-meta.js";
+export {
+  listTrialNames,
+  loadTrialManifest,
+  parseTrialManifestYaml,
+  readTrialManifest,
+  writeTrialManifest,
+} from "./trial-manifest.js";
 export type {
   AgentSnapshot,
   AggregatedSuiteEntry,
+  BenchConfig,
   BenchEntry,
   BenchIndexEntry,
   BenchReport,
@@ -63,6 +79,8 @@ export type {
   EvalEvent,
   EvalMeta,
   EvalPlugin,
+  EvalPluginAfterRunContext,
+  EvalPluginBuildPromptContext,
   EvalReport,
   EvalRunStatus,
   EvalScores,
@@ -78,11 +96,13 @@ export type {
   LauncherConfig,
   LauncherSuiteDef,
   LauncherTrial,
+  ModelConfig,
   PluginEvent,
   PluginScoreResult,
   ProfileLayer,
   ProfileSetup,
   ProfileSetupLayer,
+  ProjectEvalConfig,
   RegressionSeverity,
   RegressionStatus,
   RunEnvironment,
@@ -98,6 +118,8 @@ export type {
   SuiteReportSummary,
   SuiteSource,
   ToolCallRecord,
+  TrialManifest,
+  TrialVariant,
   VerifyResult,
 } from "./types.js";
 export { defaultVerify } from "./verifier.js";

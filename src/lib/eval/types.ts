@@ -71,14 +71,104 @@ export interface PluginScoreResult {
   judge?: JudgeScoreConfig;
 }
 
-export interface EvalPlugin {
+export interface TrialVariant {
+  /**
+   * Human-readable label for this variant. Used by the launcher UI as the
+   * display name; falls back to the variant key when omitted. Reserved by
+   * the framework — plugins should not use `label` as a domain field.
+   */
+  label?: string;
+  [key: string]: unknown;
+}
+
+export interface TrialManifest {
+  description: string;
+  taskFile?: string;
+  plugin?: string;
+  taskCount?: number;
+  scaffoldDir?: string;
+  features?: string[];
+  enabled?: boolean;
+  tags?: string[];
+  variants: Record<string, TrialVariant>;
+}
+
+export interface ModelConfig {
+  provider?: string;
+  model?: string;
+  thinking?: string;
+}
+
+export interface BenchConfig {
+  profiles: string[];
+  baseline?: string;
+  epochs?: number;
+}
+
+export interface ProjectEvalConfig {
+  worker?: ModelConfig;
+  judge?: ModelConfig;
+  models?: ModelConfig[];
+  timeouts?: {
+    workerMs?: number;
+    inactivityMs?: number;
+    judgeMs?: number;
+  };
+  epochs?: number;
+  budgets?: BudgetConfig;
+  profiles?: Record<string, ExecutionProfile>;
+  benches?: Record<string, BenchConfig>;
+  regressions?: {
+    threshold?: number;
+  };
+  defaultLaunchType?: "suite" | "trial" | "bench";
+  defaultProfile?: string;
+  defaultPlugin?: string;
+  runsDir?: string;
+}
+
+export interface EvalPluginBuildPromptContext<TVariant extends TrialVariant = TrialVariant> {
+  evalDir: string;
+  trialDir: string;
+  trialName: string;
+  variantName: string;
+  taskFile: string;
+  taskDescription: string;
+  manifest: TrialManifest;
+  variant: TVariant;
+  profile?: ExecutionProfile;
+}
+
+export interface EvalPluginAfterRunContext<TVariant extends TrialVariant = TrialVariant> {
+  evalDir: string;
+  runDir: string;
+  workDir: string;
+  trialName: string;
+  variantName: string;
+  manifest: TrialManifest;
+  variant: TVariant;
+  session: EvalSession;
+}
+
+export interface EvalPluginConfigureContext<TVariant extends TrialVariant = TrialVariant> {
+  manifest: TrialManifest;
+  variantName: string;
+  variant: TVariant;
+  taskCount?: number;
+  isMonorepo: boolean;
+}
+
+export interface EvalPlugin<TVariant extends TrialVariant = TrialVariant> {
   name: string;
   extensionPath: string;
   parseEvent?(toolName: string, resultText: string, timestamp: number): PluginEvent[];
   classifyFile?(filePath: string): string;
   scoreSession(session: EvalSession, verify: VerifyResult): PluginScoreResult;
+  buildPrompt?(context: EvalPluginBuildPromptContext<TVariant>): string;
   buildJudgePrompt(taskDescription: string, workDir: string): string;
   verify?(workDir: string): VerifyResult;
+  afterRun?(context: EvalPluginAfterRunContext<TVariant>): void | Promise<void>;
+  configure?(context: EvalPluginConfigureContext<TVariant>): void;
   formatSummary?(session: EvalSession): string[];
 }
 
@@ -430,11 +520,13 @@ export interface LauncherTrial {
   name: string;
   description: string;
   variants: string[];
+  /** Optional human-readable label per variant key; falls back to the key when missing. */
+  variantLabels?: Record<string, string>;
   tags?: string[];
   enabled?: boolean;
 }
 
-export type SuiteSource = "file" | "config";
+export type SuiteSource = "file";
 
 export interface LauncherSuiteDef {
   name: string;

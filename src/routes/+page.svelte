@@ -55,7 +55,7 @@
 		>
 			<h2 class="text-[16px] font-semibold text-foreground">Set up your first project</h2>
 			<p class="mx-auto mt-2 max-w-md text-[12px] text-foreground-muted">
-				Point pi-do-eval at a repo with an <code>eval/</code> directory, or scaffold one into a
+				Point do-eval at a repo with an <code>eval/</code> directory, or scaffold one into a
 				repo that doesn't have one yet.
 			</p>
 			<a

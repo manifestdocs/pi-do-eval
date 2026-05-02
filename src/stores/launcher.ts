@@ -8,6 +8,12 @@ import { setAutoSelect } from "./sse.js";
 
 export const launcherConfig = writable<LauncherConfig | null>(null);
 export const launcherBusy = writable(false);
+/**
+ * Populated when `loadLauncherConfig` fails — typically when `eval.config.ts`
+ * or a trial.yaml fails to parse. The viewer surfaces this so users see the
+ * file path and reason instead of a blank launcher panel.
+ */
+export const launcherError = writable<string | null>(null);
 
 export interface LauncherActionResult {
   ok: boolean;
@@ -64,27 +70,37 @@ export async function loadLauncherConfig(projectId = get(activeProjectId)): Prom
   const url = projectApiPath("/launcher", projectId);
   if (!url || !projectId) {
     launcherConfig.set(null);
+    launcherError.set(null);
     return;
   }
 
+  let nextConfig: LauncherConfig | null = null;
+  let nextError: string | null = null;
   try {
     const resp = await fetch(url);
     if (resp.ok) {
-      const config = await readJson(resp, launcherConfigCodec, "Invalid launcher config");
-      if (projectId === get(activeProjectId)) {
-        launcherConfig.set(config);
+      nextConfig = await readJson(resp, launcherConfigCodec, "Invalid launcher config");
+    } else {
+      // 5xx from getProjectRuntime → eval.config.ts or trial.yaml is malformed.
+      // 404 ("Launcher not configured") is the expected empty state, not an error.
+      try {
+        const body = (await resp.json()) as { error?: string };
+        if (resp.status >= 500 && body.error) nextError = body.error;
+      } catch {
+        if (resp.status >= 500) nextError = `Failed to load launcher (HTTP ${resp.status})`;
       }
-      return;
     }
-  } catch {
-    // Launcher not available
+  } catch (error) {
+    nextError = error instanceof Error ? error.message : "Failed to reach launcher";
   }
 
   if (projectId === get(activeProjectId)) {
-    launcherConfig.set(null);
+    launcherConfig.set(nextConfig);
+    launcherError.set(nextError);
   }
 }
 
 export function resetLauncherConfig(): void {
   launcherConfig.set(null);
+  launcherError.set(null);
 }

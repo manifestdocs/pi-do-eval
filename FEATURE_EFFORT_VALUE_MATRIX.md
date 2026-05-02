@@ -1,12 +1,12 @@
-# Feature Effort/Value Matrix for `pi-do-eval`
+# Feature Effort/Value Matrix for `do-eval`
 
-This document compares `pi-do-eval` to tools like Promptfoo and DeepEval, focusing on low-hanging features that would improve `pi-do-eval` as a Pi extension evaluation harness.
+This document compares `do-eval` to tools like Promptfoo and DeepEval, focusing on low-hanging features that would improve `do-eval` as a Pi extension evaluation harness.
 
-The goal is not to turn `pi-do-eval` into a general-purpose LLM eval platform. The goal is to identify additions that improve agent iteration, diagnosis, and non-regression tracking on a fixed trial set.
+The goal is not to turn `do-eval` into a general-purpose LLM eval platform. The goal is to identify additions that improve agent iteration, diagnosis, and non-regression tracking on a fixed trial set.
 
 ## Current Positioning
 
-`pi-do-eval` is strongest when evaluating:
+`do-eval` is strongest when evaluating:
 
 - Pi extensions running in the real Pi runtime
 - End-to-end agent behavior across full tasks
@@ -18,11 +18,11 @@ Compared to Promptfoo and DeepEval, it is narrower but more faithful to actual P
 
 ## Effort / Value Matrix
 
-| Feature | Inspired by | Value | Effort | Why it fits `pi-do-eval` |
+| Feature | Inspired by | Value | Effort | Why it fits `do-eval` |
 |---|---|---:|---:|---|
-| Built-in budget assertions for `cost`, `latency`, and `token usage` | Promptfoo assertions/metrics | High | Low | `pi-do-eval` already records duration and token data, so threshold checks would add immediate non-regression guardrails. |
+| Built-in budget assertions for `cost`, `latency`, and `token usage` | Promptfoo assertions/metrics | High | Low | `do-eval` already records duration and token data, so threshold checks would add immediate non-regression guardrails. |
 | Cost estimation per run | Promptfoo cost tracking, general eval tooling practice | High | Low | Token counts are already recorded, so adding estimated cost per run is straightforward and immediately useful for budget tracking. |
-| Built-in agent behavior assertions | Promptfoo trace assertions | High | Med | `pi-do-eval` already parses tool calls and file writes, so rules like "too many reads", "no verify step", or "blocked tools used" fit naturally. |
+| Built-in agent behavior assertions | Promptfoo trace assertions | High | Med | `do-eval` already parses tool calls and file writes, so rules like "too many reads", "no verify step", or "blocked tools used" fit naturally. |
 | Named sub-scores / component results in reports | Promptfoo JS assertions `componentResults` / `namedScores` | High | Low | This is partially present already via named `deterministic` and `judge` score maps. The remaining work is richer plugin output conventions and better viewer/report presentation. |
 | Reusable rubric-based judge helpers | Promptfoo `llm-rubric`, DeepEval `G-Eval` | Med | Low-Med | Plugins currently hand-roll judge prompts. A rubric helper would standardize subjective scoring, but it is lower urgency while there is only one primary plugin author. |
 | Judge/result caching | Promptfoo caching | Med-High | High | Re-running suites is expensive, but correct cache keys would need to account for the judge prompt, model, and the effective contents of the workdir. The value is real, but the implementation complexity is higher than it first appears. |
@@ -55,7 +55,7 @@ This is cheap to add because the framework already has most of the raw data. It 
 
 ### 2. Built-in agent behavior assertions
 
-This is where `pi-do-eval` has the biggest structural advantage over generic eval tools.
+This is where `do-eval` has the biggest structural advantage over generic eval tools.
 
 Because it already parses tool calls and file writes, it can support reusable assertions such as:
 
@@ -111,7 +111,7 @@ These are plausible, but not the best next move:
 - cloud collaboration / observability platform features
 - broad multi-modal or simulation-heavy evaluation systems
 
-These are more aligned with Promptfoo and DeepEval as larger eval platforms than with `pi-do-eval` as a focused Pi extension harness.
+These are more aligned with Promptfoo and DeepEval as larger eval platforms than with `do-eval` as a focused Pi extension harness.
 
 ## Recommendation
 
@@ -119,9 +119,9 @@ The best strategy is to borrow selectively:
 
 - borrow lightweight, reusable scoring primitives from Promptfoo
 - borrow rubric and metric-bundling ideas from DeepEval
-- keep `pi-do-eval` centered on real Pi runs, fixed trials, deterministic verification, and extension-specific behavior analysis
+- keep `do-eval` centered on real Pi runs, fixed trials, deterministic verification, and extension-specific behavior analysis
 
-That preserves the main advantage of `pi-do-eval`: evaluating the extension as an actual working agent rather than as a generic prompt or model output.
+That preserves the main advantage of `do-eval`: evaluating the extension as an actual working agent rather than as a generic prompt or model output.
 
 ## Sources
 

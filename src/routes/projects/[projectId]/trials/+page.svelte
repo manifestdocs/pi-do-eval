@@ -69,8 +69,7 @@
 			<div>
 				<h2 class="text-[16px] font-semibold text-foreground">Trials</h2>
 				<p class="mt-1 text-[12px] text-foreground-muted">
-					Trial code lives in <code>eval/trials/*/config.ts</code>. Per-trial overrides
-					(description, tags, enabled) live in an optional <code>meta.json</code> alongside and
+					Trial manifests live in <code>eval/trials/*/trial.yaml</code>. Description, tags, enabled state, plugin, task file, and variants live there and
 					can be edited here.
 				</p>
 			</div>
@@ -136,7 +135,11 @@
 								<td class="px-3 py-2">
 									<div class="flex flex-wrap gap-1">
 										{#each trial.variants as variant (variant)}
-											<code class="rounded border border-border-muted bg-background-muted px-1.5 py-0.5 text-[11px]">{variant}</code>
+											{@const label = trial.variantLabels?.[variant]}
+											<code
+												class="rounded border border-border-muted bg-background-muted px-1.5 py-0.5 text-[11px]"
+												title={label ? variant : undefined}
+											>{label ?? variant}</code>
 										{/each}
 									</div>
 								</td>
@@ -150,14 +153,15 @@
 								<td class="px-3 py-2 text-right">
 									<div class="flex flex-wrap items-center justify-end gap-1">
 										{#each trial.variants as variant (variant)}
+											{@const label = trial.variantLabels?.[variant]}
 											<button
 												type="button"
 												class="rounded border border-border-default px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground-muted transition-colors hover:border-accent-blue hover:text-accent-blue disabled:opacity-40"
 												disabled={$launcherBusy || !enabled}
-												title={enabled ? `Run ${trial.name} (${variant})` : "Trial is disabled"}
+												title={enabled ? `Run ${trial.name} (${label ?? variant})` : "Trial is disabled"}
 												onclick={() => void runTrial(trial.name, variant)}
 											>
-												Run {variant}
+												Run {label ?? variant}
 											</button>
 										{/each}
 									</div>

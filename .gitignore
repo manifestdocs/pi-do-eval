@@ -7,4 +7,8 @@ CLAUDE.md
 .svelte-kit/
 build/
 bun.lock
-docs/
+docs/*
+!docs/adr/
+!docs/adr/**
+!docs/rfcs/
+!docs/rfcs/**

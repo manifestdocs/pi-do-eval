@@ -29,9 +29,20 @@ export interface ResolvedProjectPath {
 const REGISTRY_FILE = "projects.json";
 
 export function getProjectRegistryPath(): string {
+  // PI_DO_EVAL_CONFIG_HOME is the documented env var (see README) and the
+  // canonical config dir name is `pi-do-eval/`. The legacy `DO_EVAL_CONFIG_HOME`
+  // env var and `do-eval/` directory are accepted for backwards compatibility
+  // — if the legacy file exists and the canonical does not, we read from there.
   const configHome =
-    process.env.PI_DO_EVAL_CONFIG_HOME ?? process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
-  return path.join(configHome, "pi-do-eval", REGISTRY_FILE);
+    process.env.PI_DO_EVAL_CONFIG_HOME ??
+    process.env.DO_EVAL_CONFIG_HOME ??
+    process.env.XDG_CONFIG_HOME ??
+    path.join(os.homedir(), ".config");
+  const canonical = path.join(configHome, "pi-do-eval", REGISTRY_FILE);
+  if (fs.existsSync(canonical)) return canonical;
+  const legacy = path.join(configHome, "do-eval", REGISTRY_FILE);
+  if (fs.existsSync(legacy)) return legacy;
+  return canonical;
 }
 
 export function loadProjectRegistry(): ProjectRegistry {
@@ -194,7 +205,8 @@ function isEvalDirectory(candidatePath: string): boolean {
   return (
     fs.existsSync(candidatePath) &&
     fs.statSync(candidatePath).isDirectory() &&
-    fs.existsSync(path.join(candidatePath, "eval.ts"))
+    fs.existsSync(path.join(candidatePath, "eval.config.ts")) &&
+    fs.existsSync(path.join(candidatePath, "trials"))
   );
 }
 

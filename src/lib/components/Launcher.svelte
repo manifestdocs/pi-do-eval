@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import type { LauncherConfig, RunRequest } from "$eval/types.js";
-	import { launcherConfig } from "../../stores/launcher.js";
+	import { launcherConfig, launcherError } from "../../stores/launcher.js";
 	import { resetCurrentReports, runs } from "../../stores/runs.js";
 	import { clearPendingLaunch, pendingLaunch } from "../../stores/selection.js";
 	import { setAutoSelect } from "../../stores/sse.js";
@@ -34,13 +34,15 @@
 	let statusPoll = $state<ReturnType<typeof setInterval> | null>(null);
 	let suiteNames = $derived(config ? Object.keys(config.suites) : []);
 
-	let availableVariants = $derived(
-		config?.trials.find((t) => t.name === selectedTrial)?.variants ?? [],
+	let selectedTrialEntry = $derived(
+		config?.trials.find((t) => t.name === selectedTrial),
 	);
+	let availableVariants = $derived(selectedTrialEntry?.variants ?? []);
+	let variantLabels = $derived(selectedTrialEntry?.variantLabels ?? {});
 
 	// Worker model and judge are sourced from eval.config.ts; the launcher does
 	// not expose model overrides or a "skip judge" toggle. The value of running
-	// inside pi-do-eval (vs a script) is the LLM judge — disabling it would
+	// inside do-eval (vs a script) is the LLM judge — disabling it would
 	// turn the run into a deterministic-only pipeline that belongs at the CLI.
 	function formatModel(m: { provider?: string; model?: string }): string {
 		if (m.provider && m.model) return `${m.provider}/${m.model}`;
@@ -218,7 +220,12 @@
 	}
 </script>
 
-{#if config}
+{#if $launcherError}
+	<div class="launch-bar flex items-start gap-2 rounded-lg border border-accent-red/40 bg-accent-red/5 px-3 py-2">
+		<span class="text-[10px] font-bold uppercase tracking-widest text-accent-red">Project error</span>
+		<pre class="whitespace-pre-wrap break-words text-[11px] text-accent-red">{$launcherError}</pre>
+	</div>
+{:else if config}
 	{#if isRunning}
 		<RunProgress />
 	{:else}
@@ -259,7 +266,7 @@
 				aria-label="Variant"
 			>
 				{#each availableVariants as variant (variant)}
-					<option value={variant}>{variant}</option>
+					<option value={variant}>{variantLabels[variant] ?? variant}</option>
 				{/each}
 			</select>
 		{:else}

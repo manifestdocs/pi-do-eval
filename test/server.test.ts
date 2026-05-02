@@ -16,7 +16,7 @@ import { PATCH as updateProjectTrial } from "../src/routes/api/projects/[project
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-server-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-server-"));
   process.env.PI_DO_EVAL_CONFIG_HOME = path.join(tmpDir, "config-home");
 });
 
@@ -56,7 +56,12 @@ describe("project SSE routes", () => {
     const projectRoot = path.join(tmpDir, "project");
     const evalDir = path.join(projectRoot, "eval");
     fs.mkdirSync(evalDir, { recursive: true });
-    fs.writeFileSync(path.join(evalDir, "eval.ts"), "export {};\n");
+    fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
+    fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default {};\n");
+    fs.writeFileSync(
+      path.join(evalDir, "trials", "example", "trial.yaml"),
+      "description: Example\nvariants:\n  default: {}\n",
+    );
     const project = addOrUpdateProject(projectRoot).project;
 
     const response = await getProjectEvents({ params: { projectId: project.id } } as never);
@@ -74,11 +79,6 @@ describe("project API validation", () => {
   it("rejects malformed launcher requests before spawning", async () => {
     const project = makeEvalProject("launcher-validation");
     fs.mkdirSync(path.join(project.evalDir, "trials", "example"), { recursive: true });
-    fs.writeFileSync(
-      path.join(project.evalDir, "trials", "example", "config.ts"),
-      "export default { variants: { default: {} } };\n",
-    );
-
     const response = await launchProjectRun({
       params: { projectId: project.id },
       request: new Request("http://local", {
@@ -103,12 +103,13 @@ describe("project API validation", () => {
     } as never);
 
     expect(response.status).toBe(400);
-    expect(fs.existsSync(path.join(project.evalDir, "suites", "bad.json"))).toBe(false);
+    expect(fs.existsSync(path.join(project.evalDir, "suites", "bad.yaml"))).toBe(false);
   });
 
-  it("rejects malformed trial metadata without writing files", async () => {
+  it("rejects malformed trial metadata without changing the manifest", async () => {
     const project = makeEvalProject("trial-validation");
-    fs.mkdirSync(path.join(project.evalDir, "trials", "example"), { recursive: true });
+    const manifestPath = path.join(project.evalDir, "trials", "example", "trial.yaml");
+    const before = fs.readFileSync(manifestPath, "utf-8");
 
     const response = await updateProjectTrial({
       params: { projectId: project.id, name: "example" },
@@ -119,7 +120,7 @@ describe("project API validation", () => {
     } as never);
 
     expect(response.status).toBe(400);
-    expect(fs.existsSync(path.join(project.evalDir, "trials", "example", "meta.json"))).toBe(false);
+    expect(fs.readFileSync(manifestPath, "utf-8")).toBe(before);
   });
 });
 
@@ -193,6 +194,11 @@ function makeEvalProject(name: string) {
   const projectRoot = path.join(tmpDir, name);
   const evalDir = path.join(projectRoot, "eval");
   fs.mkdirSync(evalDir, { recursive: true });
-  fs.writeFileSync(path.join(evalDir, "eval.ts"), "export {};\n");
+  fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
+  fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default {};\n");
+  fs.writeFileSync(
+    path.join(evalDir, "trials", "example", "trial.yaml"),
+    "description: Example\nvariants:\n  default: {}\n",
+  );
   return { ...addOrUpdateProject(projectRoot).project, evalDir };
 }

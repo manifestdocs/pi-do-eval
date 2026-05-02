@@ -115,7 +115,7 @@
 		</a>
 		<h1 class="mt-2 text-[20px] font-semibold text-foreground">New Project</h1>
 		<p class="mt-1 text-[12px] text-foreground-muted">
-			Point pi-do-eval at an existing <code>eval/</code> directory, or scaffold one into a repo
+			Point do-eval at an existing <code>eval/</code> directory, or scaffold one into a repo
 			that doesn't have one yet.
 		</p>
 	</div>
@@ -158,7 +158,7 @@
 				<p class="mt-2 text-[12px] text-accent-red">That path is a file, not a directory.</p>
 			{:else if status.kind === "eval-dir"}
 				<p class="mt-2 text-[12px] text-foreground-muted">
-					<strong class="text-foreground">Eval directory detected</strong> — contains <code>eval.ts</code>.
+					<strong class="text-foreground">Eval directory detected</strong> — contains <code>eval.config.ts</code>.
 					Ready to register.
 				</p>
 			{:else if status.kind === "project-with-eval"}
@@ -172,7 +172,7 @@
 					<p class="mt-2 text-[12px] text-foreground-muted">
 						<strong class="text-foreground">Project directory</strong>
 						{#if status.packageName}(<code>{status.packageName}</code>){/if}
-						— no <code>eval/</code> yet. We'll scaffold the harness (eval.ts, example trial,
+						— no <code>eval/</code> yet. We'll scaffold eval.config.ts, an example trial,
 						plugin skeleton, config) into <code>eval/</code>. You'll still need to run
 						<code>npm install</code> and fill in the plugin.
 					</p>

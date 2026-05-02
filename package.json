@@ -1,14 +1,17 @@
 {
-  "name": "pi-do-eval",
+  "name": "do-eval",
   "version": "0.2.0",
-  "description": "General-purpose eval framework for Pi extensions",
+  "description": "General-purpose eval framework for coding-agent harnesses",
   "type": "module",
   "exports": {
-    ".": "./src/lib/eval/index.ts",
+    ".": {
+      "types": "./src/lib/eval/index.d.ts",
+      "default": "./src/lib/eval/index.ts"
+    },
     "./server/config": "./src/lib/server/config.ts"
   },
   "bin": {
-    "pi-do-eval": "./cli/index.ts"
+    "do-eval": "./cli/index.ts"
   },
   "files": [
     "build",
@@ -33,7 +36,8 @@
     "lint:fix": "biome check --write"
   },
   "dependencies": {
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "yaml": "^2.8.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",

@@ -18,7 +18,7 @@ export function setServerConfig(config: LauncherConfig, runCommand: string, runs
 export function getLauncherConfig(): LauncherConfig | null {
   if (cachedConfig) return cachedConfig;
 
-  // Try loading from env (set by consumer's eval.ts view command)
+  // Try loading from env (set by the do-eval UI command)
   const envConfig = process.env.EVAL_LAUNCHER_CONFIG;
   if (envConfig) {
     try {

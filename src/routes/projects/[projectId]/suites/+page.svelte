@@ -160,9 +160,8 @@
 			<div>
 				<h2 class="text-[16px] font-semibold text-foreground">Suites</h2>
 				<p class="mt-1 text-[12px] text-foreground-muted">
-					Bundle trial/variant pairs into reusable run sets. File-based suites live in
-					<code>eval/suites/*.json</code> and can be edited here; config-based suites are defined in
-					<code>eval/eval.config.ts</code>.
+					Bundle trial/variant pairs into reusable run sets. Suites live in
+					<code>eval/suites/*.yaml</code> and can be edited here.
 				</p>
 			</div>
 			<button
@@ -203,10 +202,8 @@
 										class="rounded border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider"
 										class:border-accent-blue={suite.source === "file"}
 										class:text-accent-blue={suite.source === "file"}
-										class:border-border-default={suite.source === "config"}
-										class:text-foreground-subtle={suite.source === "config"}
 									>
-										{suite.source === "file" ? "File" : "Config"}
+										File
 									</span>
 									{#if suite.regressionThreshold != null}
 										<span class="text-[10.5px] text-foreground-subtle">
@@ -255,7 +252,7 @@
 										disabled={$launcherBusy}
 										onclick={() => void runBench(suite.name)}
 									>
-										Run bench
+										Bench
 									</button>
 									{#if suite.source === "file"}
 										<button

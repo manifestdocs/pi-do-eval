@@ -2,18 +2,13 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  deleteFileSuite,
-  loadFileSuites,
-  mergeSuiteSources,
-  type SuiteDefinition,
-  writeFileSuite,
-} from "../src/lib/eval/suite-files.js";
+import { parse, stringify } from "yaml";
+import { deleteFileSuite, loadFileSuites, type SuiteDefinition, writeFileSuite } from "../src/lib/eval/suite-files.js";
 
 let tmpDir: string;
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-do-eval-suites-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-suites-"));
 });
 
 afterEach(() => {
@@ -23,7 +18,7 @@ afterEach(() => {
 function writeFixture(name: string, data: unknown): void {
   const dir = path.join(tmpDir, "suites");
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(data, null, 2));
+  fs.writeFileSync(path.join(dir, `${name}.yaml`), stringify(data));
 }
 
 describe("loadFileSuites", () => {
@@ -31,28 +26,34 @@ describe("loadFileSuites", () => {
     expect(loadFileSuites(tmpDir)).toEqual([]);
   });
 
-  it("loads and parses all JSON files under suites/", () => {
+  it("normalizes string trial refs to the default variant", () => {
     writeFixture("smoke", {
       name: "smoke",
-      description: "Quick smoke test",
-      trials: [{ trial: "trial-a", variant: "default" }],
+      trials: ["trial-a"],
+    });
+
+    expect(loadFileSuites(tmpDir)[0]?.trials).toEqual([{ trial: "trial-a", variant: "default" }]);
+  });
+
+  it("loads mixed string and object refs", () => {
+    writeFixture("mixed", {
+      name: "mixed",
+      description: "Mixed suite",
+      trials: ["trial-a", { trial: "trial-b", variant: "edge" }],
       regressionThreshold: 3,
     });
-    writeFixture("full", {
-      name: "full",
-      trials: [
-        { trial: "trial-a", variant: "default" },
-        { trial: "trial-b", variant: "default" },
-      ],
-    });
 
-    const suites = loadFileSuites(tmpDir);
-
-    expect(suites).toHaveLength(2);
-    expect(suites.map((suite) => suite.name).sort()).toEqual(["full", "smoke"]);
-    const smoke = suites.find((suite) => suite.name === "smoke");
-    expect(smoke?.trials).toHaveLength(1);
-    expect(smoke?.regressionThreshold).toBe(3);
+    expect(loadFileSuites(tmpDir)).toEqual([
+      {
+        name: "mixed",
+        description: "Mixed suite",
+        trials: [
+          { trial: "trial-a", variant: "default" },
+          { trial: "trial-b", variant: "edge" },
+        ],
+        regressionThreshold: 3,
+      },
+    ]);
   });
 
   it("derives missing name from filename", () => {
@@ -65,42 +66,24 @@ describe("loadFileSuites", () => {
     expect(suites[0]?.name).toBe("unnamed");
   });
 
-  it("skips invalid JSON files", () => {
+  it("throws with the file path when a suite YAML is malformed", () => {
     const dir = path.join(tmpDir, "suites");
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "broken.json"), "not json");
+    fs.writeFileSync(path.join(dir, "broken.yaml"), "trials: [");
     writeFixture("ok", { name: "ok", trials: [] });
 
-    const suites = loadFileSuites(tmpDir);
-    expect(suites.map((suite) => suite.name)).toEqual(["ok"]);
-  });
-});
-
-describe("mergeSuiteSources", () => {
-  it("combines config-defined and file-defined suites", () => {
-    const configSuites = {
-      "from-config": [{ trial: "trial-a", variant: "default" }],
-    };
-    const fileSuites: SuiteDefinition[] = [{ name: "from-file", trials: [{ trial: "trial-b", variant: "default" }] }];
-
-    const merged = mergeSuiteSources(configSuites, fileSuites);
-    expect(Object.keys(merged).sort()).toEqual(["from-config", "from-file"]);
-    expect(merged["from-file"]).toEqual([{ trial: "trial-b", variant: "default" }]);
+    expect(() => loadFileSuites(tmpDir)).toThrow(/broken\.yaml could not be parsed/);
   });
 
-  it("lets file suites override config suites of the same name", () => {
-    const configSuites = {
-      smoke: [{ trial: "old", variant: "default" }],
-    };
-    const fileSuites: SuiteDefinition[] = [{ name: "smoke", trials: [{ trial: "new", variant: "default" }] }];
+  it("throws when the YAML name does not match the filename", () => {
+    writeFixture("quick", { name: "small", trials: [{ trial: "trial-a", variant: "default" }] });
 
-    const merged = mergeSuiteSources(configSuites, fileSuites);
-    expect(merged.smoke).toEqual([{ trial: "new", variant: "default" }]);
+    expect(() => loadFileSuites(tmpDir)).toThrow(/name "small" must match filename "quick\.yaml"/);
   });
 });
 
 describe("writeFileSuite + deleteFileSuite", () => {
-  it("writes a suite JSON file that loadFileSuites round-trips", () => {
+  it("writes a suite YAML file that loadFileSuites round-trips", () => {
     const suite: SuiteDefinition = {
       name: "regression",
       description: "Everything",
@@ -114,7 +97,20 @@ describe("writeFileSuite + deleteFileSuite", () => {
     expect(loaded[0]).toEqual(suite);
   });
 
-  it("removes the suite JSON file", () => {
+  it("serializes default-variant refs as strings", () => {
+    writeFileSuite(tmpDir, {
+      name: "smoke",
+      trials: [
+        { trial: "trial-a", variant: "default" },
+        { trial: "trial-b", variant: "edge" },
+      ],
+    });
+
+    const raw = parse(fs.readFileSync(path.join(tmpDir, "suites", "smoke.yaml"), "utf-8"));
+    expect(raw.trials).toEqual(["trial-a", { trial: "trial-b", variant: "edge" }]);
+  });
+
+  it("removes the suite YAML file", () => {
     writeFileSuite(tmpDir, {
       name: "temp",
       trials: [{ trial: "trial-a", variant: "default" }],
@@ -126,7 +122,19 @@ describe("writeFileSuite + deleteFileSuite", () => {
   });
 
   it("rejects invalid suite names to avoid path traversal", () => {
-    expect(() => writeFileSuite(tmpDir, { name: "../evil", trials: [] })).toThrow();
-    expect(() => deleteFileSuite(tmpDir, "../evil")).toThrow();
+    expect(() => writeFileSuite(tmpDir, { name: "../evil", trials: [] })).toThrow(/Invalid suite name/);
+    expect(() => deleteFileSuite(tmpDir, "../evil")).toThrow(/Invalid suite name/);
+  });
+
+  it("rejects duplicate trial references", () => {
+    expect(() =>
+      writeFileSuite(tmpDir, {
+        name: "dupes",
+        trials: [
+          { trial: "trial-a", variant: "default" },
+          { trial: "trial-a", variant: "default" },
+        ],
+      }),
+    ).toThrow(/Duplicate suite trial reference: trial-a:default/);
   });
 });

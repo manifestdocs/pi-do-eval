@@ -59,7 +59,7 @@
 			</div>
 			{#if $benchIndex.length === 0}
 				<div class="px-5 py-4 text-[12.75px] text-foreground-muted">
-					No benchmarks yet. Use the BENCH launcher to compare profiles.
+					No bench runs yet. Use the Bench launcher to compare profiles.
 				</div>
 			{:else}
 				{#each $benchSidebarGroups as group (group.suite)}
@@ -68,7 +68,7 @@
 							<button
 								type="button"
 								class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[16px] leading-none text-foreground-muted transition-colors hover:bg-background-subtle hover:text-foreground"
-								aria-label={$expandedBenchSuites.has(group.suite) ? `Collapse ${group.suite} benchmarks` : `Expand ${group.suite} benchmarks`}
+								aria-label={$expandedBenchSuites.has(group.suite) ? `Collapse ${group.suite} bench runs` : `Expand ${group.suite} bench runs`}
 								onclick={() => toggleBenchSuite(group.suite)}
 							>
 								<span class="inline-block transition-transform" class:rotate-90={$expandedBenchSuites.has(group.suite)}>▸</span>
@@ -126,7 +126,7 @@
 			</div>
 			{#if $sidebarItems.length === 0}
 				<div class="px-5 py-4 text-[12.75px] text-foreground-muted">
-					No regression runs yet. Use the SUITE launcher to start tracking drift.
+					No regression runs yet. Use the Regression launcher to start tracking drift.
 				</div>
 			{:else}
 				{#each $sidebarItems as group (group.groupKey)}
