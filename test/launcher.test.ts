@@ -69,6 +69,7 @@ describe("spawnRun", () => {
       { type: "trial", trial: "example", variant: "default" },
       "do-eval",
       tmpDir,
+      path.join(tmpDir, "runs"),
       launcherConfig,
     );
 
@@ -105,7 +106,14 @@ describe("spawnRun", () => {
     const child = new FakeChildProcess();
     nextChild = child;
 
-    const result = spawnRun("project-npm", { type: "bench", suite: "quick" }, "do-eval", tmpDir, launcherConfig);
+    const result = spawnRun(
+      "project-npm",
+      { type: "bench", suite: "quick" },
+      "do-eval",
+      tmpDir,
+      path.join(tmpDir, "runs"),
+      launcherConfig,
+    );
 
     expect(result).toEqual({ ok: true, id: expect.stringMatching(/^run-/) });
     expect(spawn).toHaveBeenCalledWith(
@@ -129,6 +137,7 @@ describe("killActiveRun", () => {
       { type: "trial", trial: "example", variant: "default" },
       "do-eval",
       tmpDir,
+      path.join(tmpDir, "runs"),
       launcherConfig,
     );
 

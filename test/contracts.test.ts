@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   benchIndexCodec,
   evalReportCodec,
+  launcherConfigCodec,
   partialTrialMetaCodec,
   projectRegistryCodec,
   runRequestCodec,
@@ -55,6 +56,33 @@ describe("contract codecs", () => {
     expect(parsed.value[0]?.profiles?.[1]?.factors.layers[0]?.id).toBe("quality-layer");
     expect(parsed.value[0]?.baselineProfileId).toBe("baseline");
     expect(parsed.value[0]?.averageDeltas).toEqual({ layered: 14 });
+  });
+
+  it("preserves launcher bench definitions", () => {
+    const parsed = launcherConfigCodec.parse({
+      trials: [{ name: "example", description: "Example", variants: ["default"], enabled: true }],
+      suites: { smoke: [{ trial: "example", variant: "default" }] },
+      suiteDefs: [{ name: "smoke", trials: [{ trial: "example", variant: "default" }], source: "file" }],
+      benchDefs: [
+        {
+          name: "smoke",
+          profiles: ["baseline", "treatment"],
+          baseline: "baseline",
+          epochs: 2,
+          trialCount: 1,
+        },
+      ],
+      models: [],
+    });
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.value.benchDefs?.[0]).toEqual({
+      name: "smoke",
+      profiles: ["baseline", "treatment"],
+      baseline: "baseline",
+      epochs: 2,
+      trialCount: 1,
+    });
   });
 
   it("normalizes project registries and drops invalid entries", () => {

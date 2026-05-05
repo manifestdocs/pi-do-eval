@@ -6,8 +6,10 @@ runs/
 CLAUDE.md
 .svelte-kit/
 build/
+site/
 bun.lock
 docs/*
+!docs/*.md
 !docs/adr/
 !docs/adr/**
 !docs/rfcs/

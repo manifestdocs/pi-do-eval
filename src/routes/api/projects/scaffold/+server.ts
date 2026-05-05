@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const result = await initEvalDir(body.value.repoRoot);
     const { registry, project } = addOrUpdateProject(result.evalDir);
-    projectWatchers.syncProjects(registry.projects);
+    await projectWatchers.syncProjects(registry.projects);
     return json({ registry, project, extensionName: result.extensionName });
   } catch (error) {
     if (error instanceof InitError) {

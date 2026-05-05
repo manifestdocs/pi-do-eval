@@ -11,6 +11,7 @@ export interface LiveOptions {
   runDir: string;
   runsDir: string;
   intervalMs?: number;
+  emitCompletion?: boolean;
   meta: Pick<EvalMeta, "trial" | "variant" | "suite" | "suiteRunId" | "epoch" | "totalEpochs" | "runId"> & {
     workerModel?: string;
     agentSnapshot?: AgentSnapshot;
@@ -84,6 +85,7 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
         type: "run_started",
         timestamp: Date.now(),
         dir: path.basename(live.runDir),
+        runsDir: live.runsDir,
         trial: live.meta.trial,
         variant: live.meta.variant,
         suite: live.meta.suite,
@@ -181,13 +183,15 @@ export async function runEval(opts: RunOptions): Promise<RunResult> {
     if (live) {
       writeLiveSnapshot();
       updateRunIndex(live.runsDir, live.emit);
-      live.emit?.({
-        type: "run_completed",
-        timestamp: Date.now(),
-        dir: path.basename(live.runDir),
-        status: result.status,
-        durationMs: Date.now() - startMs,
-      });
+      if (live.emitCompletion !== false) {
+        live.emit?.({
+          type: "run_completed",
+          timestamp: Date.now(),
+          dir: path.basename(live.runDir),
+          status: result.status,
+          durationMs: Date.now() - startMs,
+        });
+      }
     }
 
     return { session, status: result.status, exitCode: result.exitCode, stderr: result.stderr, workDir: opts.workDir };

@@ -1,5 +1,5 @@
 import type { LauncherConfig } from "$eval/types.js";
-import { getRunCommandForEvalDir, loadLauncherConfigFromEvalDir } from "./harness.js";
+import { getRunCommandForEvalDir, loadLauncherConfigFromEvalDir, resolveRunsDirFromEvalDir } from "./harness.js";
 import { getActiveProject, getRegisteredProject, type RegisteredProject } from "./projects.js";
 import { ProjectWatcherCoordinator } from "./watchers.js";
 
@@ -20,7 +20,7 @@ export async function getProjectRuntime(projectId: string): Promise<ProjectRunti
     project,
     launcherConfig: await loadLauncherConfigFromEvalDir(project.evalDir),
     runCommand: getRunCommandForEvalDir(project.evalDir),
-    runsDir: project.evalDir,
+    runsDir: await resolveRunsDirFromEvalDir(project.evalDir),
   };
 }
 

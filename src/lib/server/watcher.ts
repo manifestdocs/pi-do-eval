@@ -21,7 +21,7 @@ export class RunsWatcher {
   constructor(private runsDir: string) {}
 
   get runsPath(): string {
-    return path.join(this.runsDir, "runs");
+    return this.runsDir;
   }
 
   start(): void {

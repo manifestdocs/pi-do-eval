@@ -8,7 +8,7 @@ const MIME: Record<string, string> = {
 };
 
 export function createRunsFileResponse(runsDir: string, relativePath: string): Response {
-  const runsRoot = path.resolve(runsDir, "runs");
+  const runsRoot = path.resolve(runsDir);
   const filePath = path.resolve(runsRoot, relativePath);
 
   if (!isWithinRoot(runsRoot, filePath)) {

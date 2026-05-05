@@ -279,6 +279,7 @@ export function createSuiteReport(
   completedAt = new Date().toISOString(),
   epochs?: number,
   workerModel?: string,
+  cacheKey?: string,
 ): SuiteReport {
   const entries = reports.map(({ report, runDir }) => buildSuiteReportEntry(report, runDir));
   const sortedEntries = [...entries].sort((a, b) => suiteEntryKey(a).localeCompare(suiteEntryKey(b)));
@@ -297,6 +298,7 @@ export function createSuiteReport(
     suite,
     suiteRunId,
     ...(workerModel ? { workerModel } : {}),
+    ...(cacheKey ? { cacheKey } : {}),
     startedAt,
     completedAt,
     entries: sortedEntries,
@@ -362,11 +364,22 @@ export function loadSuiteReport(runsDir: string, suite: string, suiteRunId: stri
 }
 
 export function loadLatestSuiteReport(runsDir: string, suite: string, workerModel?: string): SuiteReport | undefined {
-  const entry = loadSuiteIndex(runsDir).find(
-    (indexEntry) => indexEntry.suite === suite && (workerModel === undefined || indexEntry.workerModel === workerModel),
-  );
-  if (!entry) return undefined;
-  return loadSuiteReport(runsDir, entry.suite, entry.suiteRunId);
+  return loadLatestSuiteReportMatching(runsDir, suite, workerModel);
+}
+
+export function loadLatestSuiteReportMatching(
+  runsDir: string,
+  suite: string,
+  workerModel?: string,
+  predicate?: (report: SuiteReport) => boolean,
+): SuiteReport | undefined {
+  for (const entry of loadSuiteIndex(runsDir)) {
+    if (entry.suite !== suite) continue;
+    if (workerModel !== undefined && entry.workerModel !== workerModel) continue;
+    const report = loadSuiteReport(runsDir, entry.suite, entry.suiteRunId);
+    if (report && (!predicate || predicate(report))) return report;
+  }
+  return undefined;
 }
 
 export function loadPreviousSuiteReport(

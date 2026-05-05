@@ -8,6 +8,7 @@ import {
   computeStats,
   createSuiteReport,
   loadLatestSuiteReport,
+  loadLatestSuiteReportMatching,
   loadPreviousSuiteReport,
   loadSuiteReport,
   updateSuiteIndex,
@@ -995,6 +996,42 @@ describe("workerModel in suite reports", () => {
 
     // With filter: latest for gpt-5.4 is suite-601
     expect(loadLatestSuiteReport(runsDir, "small", "openai/gpt-5.4")?.suiteRunId).toBe("suite-601");
+  });
+
+  it("loadLatestSuiteReportMatching skips reports whose cache key does not match", () => {
+    const runsDir = fs.mkdtempSync(path.join(os.tmpdir(), "do-eval-cache-latest-"));
+    tempDirs.push(runsDir);
+
+    const oldSuite = createSuiteReport(
+      "small",
+      "suite-801",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r1" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      "codexBaseline",
+      "cache-a",
+    );
+    const newSuite = createSuiteReport(
+      "small",
+      "suite-802",
+      [{ report: makeReport("todo-cli", "ts"), runDir: "r2" }],
+      "2026-01-01T00:20:00Z",
+      undefined,
+      "codexBaseline",
+      "cache-b",
+    );
+
+    writeSuiteReport(oldSuite, runsDir);
+    writeSuiteReport(newSuite, runsDir);
+    updateSuiteIndex(runsDir);
+
+    expect(
+      loadLatestSuiteReportMatching(runsDir, "small", "codexBaseline", (report) => report.cacheKey === "cache-a")
+        ?.suiteRunId,
+    ).toBe("suite-801");
+    expect(
+      loadLatestSuiteReportMatching(runsDir, "small", "codexBaseline", (report) => report.cacheKey === "missing"),
+    ).toBeUndefined();
   });
 
   it("old index entries without workerModel are skipped when filter is set", () => {

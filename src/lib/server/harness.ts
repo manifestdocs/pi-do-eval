@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
 import { parseProjectEvalConfig } from "$eval/load-config.js";
 import { loadFileSuites } from "$eval/suite-files.js";
 import { loadTrialManifest } from "$eval/trial-manifest.js";
-import type { LauncherConfig, LauncherSuiteDef, ProjectEvalConfig } from "$eval/types.js";
+import type { LauncherBenchDef, LauncherConfig, LauncherSuiteDef, ProjectEvalConfig } from "$eval/types.js";
 
 type TrialRef = { trial: string; variant: string };
 
@@ -62,6 +62,7 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
     source: "file",
   }));
   suiteDefs.sort((a, b) => a.name.localeCompare(b.name));
+  const benchDefs = buildBenchDefs(evalConfig, suiteDefs);
 
   return {
     trials,
@@ -72,6 +73,7 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
       ]),
     ),
     suiteDefs,
+    benchDefs,
     models: evalConfig?.models ?? [],
     defaultWorker: evalConfig?.worker,
     judge: evalConfig?.judge,
@@ -83,8 +85,38 @@ export async function loadLauncherConfigFromEvalDir(evalDir: string): Promise<La
   };
 }
 
+function buildBenchDefs(evalConfig: ProjectEvalConfig | null, suiteDefs: LauncherSuiteDef[]): LauncherBenchDef[] {
+  const suiteByName = new Map(suiteDefs.map((suite) => [suite.name, suite]));
+  const configuredBenches = Object.entries(evalConfig?.benches ?? {});
+  const defs =
+    configuredBenches.length > 0
+      ? configuredBenches.map(([name, bench]) => {
+          const suite = suiteByName.get(name);
+          return {
+            name,
+            ...(suite?.description ? { description: suite.description } : {}),
+            profiles: bench.profiles,
+            ...(bench.baseline ? { baseline: bench.baseline } : {}),
+            ...(bench.epochs !== undefined ? { epochs: bench.epochs } : {}),
+            ...(suite ? { trialCount: suite.trials.length } : {}),
+          };
+        })
+      : suiteDefs.map((suite) => ({
+          name: suite.name,
+          ...(suite.description ? { description: suite.description } : {}),
+          profiles: [],
+          trialCount: suite.trials.length,
+        }));
+  return defs.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function getRunCommandForEvalDir(_evalDir?: string): string {
   return "do-eval";
+}
+
+export async function resolveRunsDirFromEvalDir(evalDir: string): Promise<string> {
+  const evalConfig = await loadEvalConfig(evalDir);
+  return evalConfig?.runsDir ? path.resolve(evalDir, evalConfig.runsDir) : path.join(evalDir, "runs");
 }
 
 function validateSuiteReferences(

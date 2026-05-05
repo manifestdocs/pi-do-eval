@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createBenchReport, createProfileBenchReport, printBenchComparison } from "../src/lib/eval/bench.js";
+import {
+  collectBenchGateFailures,
+  createBenchReport,
+  createProfileBenchReport,
+  printBenchComparison,
+} from "../src/lib/eval/bench.js";
 import { createSuiteReport } from "../src/lib/eval/suites.js";
 import type { EvalReport, ExecutionProfile, SuiteReport } from "../src/lib/eval/types.js";
 
-function makeReport(trial: string, variant: string, overall: number): EvalReport {
+function makeReport(trial: string, variant: string, overall: number, overrides?: Partial<EvalReport>): EvalReport {
   return {
     meta: {
       trial,
@@ -18,6 +23,7 @@ function makeReport(trial: string, variant: string, overall: number): EvalReport
       deterministic: { quality: overall, coverage: overall - 10 },
       overall,
       issues: [],
+      ...overrides?.scores,
     },
     session: {
       toolCalls: [],
@@ -31,6 +37,7 @@ function makeReport(trial: string, variant: string, overall: number): EvalReport
       parseWarnings: 0,
     },
     findings: [],
+    ...overrides,
   };
 }
 
@@ -121,6 +128,50 @@ describe("createBenchReport", () => {
     const todo = bench.entries.find((e) => e.trial === "todo-cli");
     expect(todo?.deterministic["model-a"]?.quality).toBe(80);
     expect(todo?.deterministic["model-b"]?.quality).toBe(70);
+  });
+});
+
+describe("collectBenchGateFailures", () => {
+  const profile: ExecutionProfile = {
+    id: "codexWithLayer",
+    label: "Codex with layer",
+    agent: { harness: "codex" },
+    factors: { layers: [] },
+  };
+
+  it("requires judge scores when configured", () => {
+    const suite = makeSuiteForModel("codexWithLayer", [{ trial: "routing", variant: "default", overall: 90 }]);
+
+    expect(
+      collectBenchGateFailures([{ profile, report: suite }], { profiles: [profile.id], requireJudge: true }),
+    ).toEqual(["codexWithLayer routing/default: judge result required but missing"]);
+  });
+
+  it("requires deterministic score minimums when configured", () => {
+    const report = makeReport("routing", "default", 90, {
+      scores: {
+        deterministic: { baseline_isolation: 100, abp_activation: 0 },
+        judge: { quality: 90 },
+        overall: 90,
+        issues: [],
+      },
+    });
+    const suite = createSuiteReport(
+      "small",
+      "suite-layer",
+      [{ report, runDir: "run-layer" }],
+      "2026-01-01T00:10:00Z",
+      undefined,
+      profile.id,
+    );
+
+    expect(
+      collectBenchGateFailures([{ profile, report: suite }], {
+        profiles: [profile.id],
+        requireJudge: true,
+        requiredDeterministicScores: { baseline_isolation: 100, abp_activation: 100 },
+      }),
+    ).toEqual(['codexWithLayer routing/default: deterministic score "abp_activation" 0 is below required 100']);
   });
 });
 

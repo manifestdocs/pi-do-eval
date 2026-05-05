@@ -1,59 +1,70 @@
+import { resolveRunsDirFromEvalDir } from "./harness.js";
 import { getRegisteredProject, listRegisteredProjects, type RegisteredProject } from "./projects.js";
 import { type EventEmitter, RunsWatcher } from "./watcher.js";
 
 export class ProjectWatcherCoordinator {
-  private watchers = new Map<string, RunsWatcher>();
+  private watchers = new Map<string, { runsDir: string; watcher: RunsWatcher }>();
 
-  syncProjects(projects: RegisteredProject[]): void {
+  async syncProjects(projects: RegisteredProject[]): Promise<void> {
     const activeIds = new Set(projects.map((project) => project.id));
 
     for (const project of projects) {
-      if (!this.watchers.has(project.id)) {
-        const watcher = new RunsWatcher(project.evalDir);
+      let runsDir: string;
+      try {
+        runsDir = await resolveRunsDirFromEvalDir(project.evalDir);
+      } catch {
+        continue;
+      }
+      const existing = this.watchers.get(project.id);
+      if (!existing || existing.runsDir !== runsDir) {
+        existing?.watcher.stop();
+        const watcher = new RunsWatcher(runsDir);
         watcher.start();
-        this.watchers.set(project.id, watcher);
+        this.watchers.set(project.id, { runsDir, watcher });
       }
     }
 
-    for (const [projectId, watcher] of this.watchers) {
+    for (const [projectId, entry] of this.watchers) {
       if (!activeIds.has(projectId)) {
-        watcher.stop();
+        entry.watcher.stop();
         this.watchers.delete(projectId);
       }
     }
   }
 
-  syncFromRegistry(): void {
-    this.syncProjects(listRegisteredProjects());
+  async syncFromRegistry(): Promise<void> {
+    await this.syncProjects(listRegisteredProjects());
   }
 
-  subscribe(projectId: string, listener: EventEmitter): (() => void) | null {
-    const watcher = this.getWatcher(projectId);
-    return watcher ? watcher.subscribe(listener) : null;
+  async subscribe(projectId: string, listener: EventEmitter): Promise<(() => void) | null> {
+    const entry = await this.getWatcher(projectId);
+    return entry ? entry.watcher.subscribe(listener) : null;
   }
 
   getListenerCount(projectId: string): number {
-    const watcher = this.watchers.get(projectId);
-    return watcher?.getListenerCount() ?? 0;
+    const entry = this.watchers.get(projectId);
+    return entry?.watcher.getListenerCount() ?? 0;
   }
 
   stopAll(): void {
-    for (const watcher of this.watchers.values()) {
-      watcher.stop();
+    for (const entry of this.watchers.values()) {
+      entry.watcher.stop();
     }
     this.watchers.clear();
   }
 
-  private getWatcher(projectId: string): RunsWatcher | null {
+  private async getWatcher(projectId: string): Promise<{ runsDir: string; watcher: RunsWatcher } | null> {
     const existing = this.watchers.get(projectId);
     if (existing) return existing;
 
     const project = getRegisteredProject(projectId);
     if (!project) return null;
 
-    const watcher = new RunsWatcher(project.evalDir);
+    const runsDir = await resolveRunsDirFromEvalDir(project.evalDir);
+    const watcher = new RunsWatcher(runsDir);
     watcher.start();
-    this.watchers.set(projectId, watcher);
-    return watcher;
+    const entry = { runsDir, watcher };
+    this.watchers.set(projectId, entry);
+    return entry;
   }
 }

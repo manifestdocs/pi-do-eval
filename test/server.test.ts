@@ -10,6 +10,7 @@ import { createShutdownController } from "../src/lib/server/shutdown.js";
 import { RunsWatcher } from "../src/lib/server/watcher.js";
 import { GET as getProjectEvents } from "../src/routes/api/projects/[projectId]/events/+server.js";
 import { POST as launchProjectRun } from "../src/routes/api/projects/[projectId]/launcher/+server.js";
+import { GET as getProjectRunFile } from "../src/routes/api/projects/[projectId]/runs/[...path]/+server.js";
 import { POST as createProjectSuite } from "../src/routes/api/projects/[projectId]/suites/+server.js";
 import { PATCH as updateProjectTrial } from "../src/routes/api/projects/[projectId]/trials/[name]/+server.js";
 
@@ -29,9 +30,10 @@ afterEach(() => {
 describe("createRunsFileResponse", () => {
   it("blocks direct path traversal", () => {
     const evalDir = path.join(tmpDir, "eval");
-    fs.mkdirSync(path.join(evalDir, "runs"), { recursive: true });
+    const runsDir = path.join(evalDir, "runs");
+    fs.mkdirSync(runsDir, { recursive: true });
 
-    const response = createRunsFileResponse(evalDir, "../secret.txt");
+    const response = createRunsFileResponse(runsDir, "../secret.txt");
 
     expect(response.status).toBe(403);
   });
@@ -44,10 +46,49 @@ describe("createRunsFileResponse", () => {
     fs.writeFileSync(outside, "secret");
     fs.symlinkSync(outside, path.join(runsDir, "run-1", "report.txt"));
 
-    const response = createRunsFileResponse(evalDir, "run-1/report.txt");
+    const response = createRunsFileResponse(runsDir, "run-1/report.txt");
 
     expect(response.status).toBe(403);
     expect(await response.text()).toBe("Forbidden");
+  });
+});
+
+describe("project run file routes", () => {
+  it("serves live run files from eval.config.ts runsDir", async () => {
+    const project = makeEvalProject("configured-runs", "export default { runsDir: '../custom-runs' };\n");
+    const configuredRunsDir = path.join(path.dirname(project.evalDir), "custom-runs");
+    fs.mkdirSync(path.join(configuredRunsDir, "run-1"), { recursive: true });
+    fs.writeFileSync(
+      path.join(configuredRunsDir, "run-1", "live.json"),
+      JSON.stringify({
+        meta: {
+          trial: "example",
+          variant: "default",
+          status: "running",
+          startedAt: "2026-01-01T00:00:00Z",
+          durationMs: 10,
+          workerModel: "test",
+        },
+        session: {
+          rawLines: [],
+          toolCalls: [{ timestamp: 1, name: "read", arguments: { path: "README.md" }, wasBlocked: false }],
+          fileWrites: [],
+          pluginEvents: [],
+          startTime: 0,
+          endTime: 10,
+          durationMs: 10,
+          tokenUsage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      }),
+    );
+
+    const response = await getProjectRunFile({
+      params: { projectId: project.id, path: "run-1/live.json" },
+    } as never);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.session.toolCalls).toHaveLength(1);
   });
 });
 
@@ -58,6 +99,7 @@ describe("project SSE routes", () => {
     fs.mkdirSync(evalDir, { recursive: true });
     fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
     fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default {};\n");
+    fs.writeFileSync(path.join(evalDir, "package.json"), JSON.stringify({ type: "module" }));
     fs.writeFileSync(
       path.join(evalDir, "trials", "example", "trial.yaml"),
       "description: Example\nvariants:\n  default: {}\n",
@@ -67,11 +109,12 @@ describe("project SSE routes", () => {
     const response = await getProjectEvents({ params: { projectId: project.id } } as never);
 
     expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(projectWatchers.getListenerCount(project.id)).toBe(1));
     expect(projectWatchers.getListenerCount(project.id)).toBe(1);
 
     await response.body?.cancel();
 
-    expect(projectWatchers.getListenerCount(project.id)).toBe(0);
+    await vi.waitFor(() => expect(projectWatchers.getListenerCount(project.id)).toBe(0));
   });
 });
 
@@ -190,12 +233,13 @@ describe("shutdown controller", () => {
   });
 });
 
-function makeEvalProject(name: string) {
+function makeEvalProject(name: string, configSource = "export default {};\n") {
   const projectRoot = path.join(tmpDir, name);
   const evalDir = path.join(projectRoot, "eval");
   fs.mkdirSync(evalDir, { recursive: true });
   fs.mkdirSync(path.join(evalDir, "trials", "example"), { recursive: true });
-  fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default {};\n");
+  fs.writeFileSync(path.join(evalDir, "eval.config.ts"), configSource);
+  fs.writeFileSync(path.join(evalDir, "package.json"), JSON.stringify({ type: "module" }));
   fs.writeFileSync(
     path.join(evalDir, "trials", "example", "trial.yaml"),
     "description: Example\nvariants:\n  default: {}\n",

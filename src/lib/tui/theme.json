@@ -1,0 +1,24 @@
+{
+  "$schema": "./theme-schema.json",
+  "fg": {
+    "text": "#e0e0e0",
+    "muted": "#888888",
+    "dim": "#555555",
+    "accent": "#74c0fc",
+    "accentStrong": "#3b82f6",
+    "success": "#56c271",
+    "warning": "#f59e0b",
+    "error": "#ef4444",
+    "selected": "#0b0f17",
+    "headerBrand": "#a78bfa",
+    "scoreGood": "#56c271",
+    "scoreOk": "#fbbf24",
+    "scoreBad": "#ef4444"
+  },
+  "bg": {
+    "header": "#0f1115",
+    "footer": "#0f1115",
+    "selected": "#74c0fc",
+    "modal": "#0b0f17"
+  }
+}

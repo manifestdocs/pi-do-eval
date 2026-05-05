@@ -46,7 +46,14 @@ export const POST: RequestHandler = async ({ request }) => {
     return launcherError("Launcher not configured", 404);
   }
 
-  const result = spawnRun(runtime.project.id, body.value, runtime.runCommand, runtime.runsDir, runtime.launcherConfig);
+  const result = spawnRun(
+    runtime.project.id,
+    body.value,
+    runtime.runCommand,
+    runtime.project.evalDir,
+    runtime.runsDir,
+    runtime.launcherConfig,
+  );
   const status = result.ok ? 200 : 409;
   return json(result, { status });
 };

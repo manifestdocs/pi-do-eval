@@ -87,9 +87,10 @@ export async function runInit(cwd = process.cwd()) {
     console.log("  npm install");
     console.log(`  # Edit plugins/${result.extensionName}.ts to implement scoring`);
     console.log("  # Edit trials/example/task.md with a real task");
-    console.log("  do-eval trial example --variant default --project .");
-    console.log("  do-eval suite create small example --project .");
-    console.log("  do-eval regression small --project .");
+    console.log("  npm run eval:list");
+    console.log("  npm run eval:trial -- example --variant default");
+    console.log("  npm run eval:regression");
+    console.log("  npm run eval");
   } catch (error) {
     if (error instanceof InitError) {
       console.error(error.message);

@@ -110,7 +110,8 @@ export const sidebarItems = derived([runs, suiteIndex], ([$runs, $suiteIndex]) =
 
   for (const run of $runs) {
     if (!run.suite || !run.suiteRunId) continue;
-    const groupKey = regressionGroupKey(run.suite, run.workerModel);
+    const workerModel = resolveRunWorkerModel(run, $runs, $suiteIndex);
+    const groupKey = regressionGroupKey(run.suite, workerModel);
     if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
     const suiteRuns = groupMap.get(groupKey);
     if (!suiteRuns) continue;
@@ -121,7 +122,7 @@ export const sidebarItems = derived([runs, suiteIndex], ([$runs, $suiteIndex]) =
       item = {
         suite: run.suite,
         suiteRunId: run.suiteRunId,
-        workerModel: run.workerModel,
+        workerModel,
         status: "running",
         totalRuns: 0,
         finishedRuns: 0,
@@ -163,6 +164,16 @@ export const sidebarItems = derived([runs, suiteIndex], ([$runs, $suiteIndex]) =
   });
   return result;
 });
+
+function resolveRunWorkerModel(run: RunIndexEntry, allRuns: RunIndexEntry[], allSuites: SuiteIndexEntry[]): string {
+  if (run.workerModel) return run.workerModel;
+  if (!run.suiteRunId) return "";
+  const indexed = allSuites.find((entry) => entry.suiteRunId === run.suiteRunId);
+  if (indexed?.workerModel) return indexed.workerModel;
+  return (
+    allRuns.find((candidate) => candidate.suiteRunId === run.suiteRunId && candidate.workerModel)?.workerModel ?? ""
+  );
+}
 
 export const benchSidebarGroups = derived(benchIndex, ($benchIndex): BenchSidebarGroup[] => {
   const grouped = new Map<string, BenchIndexEntry[]>();

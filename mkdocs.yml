@@ -1,0 +1,44 @@
+site_name: Do Eval
+site_description: Local-first evaluation harnesses for coding agents.
+repo_url: https://github.com/kreek/pi-do-eval
+repo_name: kreek/pi-do-eval
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Start:
+      - Concepts: concepts.md
+      - Running Do Eval: running.md
+      - Getting Started: getting-started.md
+      - CLI Reference: cli.md
+  - Build:
+      - Plugin API: plugin-api.md
+      - Lower-Level API: lower-level-api.md
+      - Architecture: design.md
+      - Agent Harness Adapters: agent-harness-adapters.md
+  - Decisions:
+      - Coding-Agent Eval Focus: adr/0001-coding-agent-eval-focus.md
+      - Closing The Eval Loop: rfcs/closing-the-eval-loop.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+plugins:
+  - search

@@ -1,5 +1,6 @@
 import {
   asObject,
+  asOptionalBoolean,
   asOptionalFiniteNumber,
   asOptionalString,
   fail,
@@ -20,9 +21,12 @@ import type {
   ProfileSetup,
   ProfileSetupLayer,
   ProjectEvalConfig,
+  WorkspaceConfig,
+  WorkspaceProviderKind,
 } from "./types.js";
 
 const LAUNCH_TYPES = new Set(["suite", "trial", "bench"] as const);
+const WORKSPACE_PROVIDERS = new Set(["local-fs", "agentfs-fuse"] as const);
 const KNOWN_KEYS = new Set([
   "worker",
   "judge",
@@ -37,6 +41,7 @@ const KNOWN_KEYS = new Set([
   "defaultProfile",
   "defaultPlugin",
   "runsDir",
+  "workspace",
 ]);
 
 export function parseProjectEvalConfig(value: unknown, label = "eval.config.ts"): ParseResult<ProjectEvalConfig> {
@@ -80,6 +85,7 @@ export function parseProjectEvalConfig(value: unknown, label = "eval.config.ts")
   const defaultProfile = asOptionalString(object.value.defaultProfile, `${label}.defaultProfile`);
   const defaultPlugin = asOptionalString(object.value.defaultPlugin, `${label}.defaultPlugin`);
   const runsDir = asOptionalString(object.value.runsDir, `${label}.runsDir`);
+  const workspace = parseOptionalWorkspaceConfig(object.value.workspace, `${label}.workspace`);
 
   const issues = mergeIssues(
     worker,
@@ -95,6 +101,7 @@ export function parseProjectEvalConfig(value: unknown, label = "eval.config.ts")
     defaultProfile,
     defaultPlugin,
     runsDir,
+    workspace,
   );
   if (issues.length > 0) return failIssues(issues);
 
@@ -112,6 +119,7 @@ export function parseProjectEvalConfig(value: unknown, label = "eval.config.ts")
   if (defaultProfile.value) result.defaultProfile = defaultProfile.value;
   if (defaultPlugin.value) result.defaultPlugin = defaultPlugin.value;
   if (runsDir.value) result.runsDir = runsDir.value;
+  if (workspace.value) result.workspace = workspace.value;
   return ok(result);
 }
 
@@ -256,13 +264,36 @@ function parseBenchConfig(value: unknown, path: string): ParseResult<BenchConfig
   }
   const baseline = asOptionalString(object.value.baseline, `${path}.baseline`);
   const epochs = asOptionalFiniteNumber(object.value.epochs, `${path}.epochs`);
-  const issues = mergeIssues(baseline, epochs);
+  const reuseBaseline = asOptionalBoolean(object.value.reuseBaseline, `${path}.reuseBaseline`);
+  const requireJudge = asOptionalBoolean(object.value.requireJudge, `${path}.requireJudge`);
+  const requiredDeterministicScores = parseOptionalNumberRecord(
+    object.value.requiredDeterministicScores,
+    `${path}.requiredDeterministicScores`,
+  );
+  const issues = mergeIssues(baseline, epochs, reuseBaseline, requireJudge, requiredDeterministicScores);
   if (issues.length > 0) return failIssues(issues);
   return ok({
     profiles,
     ...(baseline.value ? { baseline: baseline.value } : {}),
     ...(epochs.value !== undefined ? { epochs: epochs.value } : {}),
+    ...(reuseBaseline.value !== undefined ? { reuseBaseline: reuseBaseline.value } : {}),
+    ...(requireJudge.value !== undefined ? { requireJudge: requireJudge.value } : {}),
+    ...(requiredDeterministicScores.value !== undefined
+      ? { requiredDeterministicScores: requiredDeterministicScores.value }
+      : {}),
   });
+}
+
+function parseOptionalNumberRecord(value: unknown, path: string): ParseResult<Record<string, number> | undefined> {
+  if (value === undefined) return ok(undefined);
+  if (!isRecord(value)) return fail(`${path} must be an object of metric names to finite numbers`);
+  const result: Record<string, number> = {};
+  const issues: string[] = [];
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "number" && Number.isFinite(entry)) result[key] = entry;
+    else issues.push(`${path}.${key} must be a finite number`);
+  }
+  return issues.length > 0 ? failIssues(issues) : ok(result);
 }
 
 function parseRegressions(value: unknown, path: string): ParseResult<{ threshold?: number } | undefined> {
@@ -272,6 +303,27 @@ function parseRegressions(value: unknown, path: string): ParseResult<{ threshold
   const threshold = asOptionalFiniteNumber(object.value.threshold, `${path}.threshold`);
   if (!threshold.ok) return failIssues(threshold.issues);
   return ok(threshold.value !== undefined ? { threshold: threshold.value } : {});
+}
+
+function parseOptionalWorkspaceConfig(value: unknown, path: string): ParseResult<WorkspaceConfig | undefined> {
+  if (value === undefined) return ok(undefined);
+  const object = asObject(value, path);
+  if (!object.ok) return failIssues(object.issues);
+  const providerValue = object.value.provider;
+  if (typeof providerValue !== "string" || !WORKSPACE_PROVIDERS.has(providerValue as WorkspaceProviderKind)) {
+    return fail(`${path}.provider must be "local-fs" or "agentfs-fuse"`);
+  }
+  const root = asOptionalString(object.value.root, `${path}.root`);
+  const agentfsCommand = asOptionalString(object.value.agentfsCommand, `${path}.agentfsCommand`);
+  const mountTimeoutMs = asOptionalFiniteNumber(object.value.mountTimeoutMs, `${path}.mountTimeoutMs`);
+  const issues = mergeIssues(root, agentfsCommand, mountTimeoutMs);
+  if (issues.length > 0) return failIssues(issues);
+  return ok({
+    provider: providerValue as WorkspaceProviderKind,
+    ...(root.value ? { root: root.value } : {}),
+    ...(agentfsCommand.value ? { agentfsCommand: agentfsCommand.value } : {}),
+    ...(mountTimeoutMs.value !== undefined ? { mountTimeoutMs: mountTimeoutMs.value } : {}),
+  });
 }
 
 function parseOptionalLaunchType(value: unknown, path: string): ParseResult<"suite" | "trial" | "bench" | undefined> {

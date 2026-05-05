@@ -110,6 +110,40 @@ describe("finalizeJudgeOutcome", () => {
     });
   });
 
+  it("parses Codex-style assistant message_end output", () => {
+    const output = [
+      '{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"scratch"},{"type":"text","text":"{\\"quality\\":91,\\"findings\\":[\\"good\\"]}"}]}}',
+      '{"type":"agent_end"}',
+    ].join("\n");
+
+    expect(finalizeJudgeOutcome(output)).toEqual({
+      ok: true,
+      result: {
+        scores: { quality: 91 },
+        reasons: {},
+        findings: ["good"],
+      },
+      stdout: output,
+    });
+  });
+
+  it("parses Codex-style assistant message_update output when message_end is absent", () => {
+    const output = [
+      '{"type":"message_update","message":{"role":"assistant","content":[{"type":"text","text":"{\\"quality\\":92,\\"findings\\":[\\"good\\"]}"}]}}',
+      '{"type":"agent_end"}',
+    ].join("\n");
+
+    expect(finalizeJudgeOutcome(output)).toEqual({
+      ok: true,
+      result: {
+        scores: { quality: 92 },
+        reasons: {},
+        findings: ["good"],
+      },
+      stdout: output,
+    });
+  });
+
   it("preserves raw stdout on parse failures", () => {
     const output = [
       '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"not json"}]}}',
@@ -124,6 +158,35 @@ describe("finalizeJudgeOutcome", () => {
 });
 
 describe("runJudge", () => {
+  it("finishes when the judge emits a completed assistant event", async () => {
+    const child = new FakeChildProcess();
+    nextChild = child;
+
+    const outcomePromise = runJudge({
+      workDir: "/tmp/work",
+      prompt: "Judge this",
+      timeoutMs: 60_000,
+    });
+
+    const stdout = [
+      '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"{\\"quality\\":88,\\"findings\\":[\\"concern\\"]}"}]}}',
+      '{"type":"agent_end"}',
+      "",
+    ].join("\n");
+    child.stdout.write(stdout);
+
+    await expect(outcomePromise).resolves.toEqual({
+      ok: true,
+      result: {
+        scores: { quality: 88 },
+        reasons: {},
+        findings: ["concern"],
+      },
+      stdout,
+    });
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
   it("includes captured stdout when the judge times out", async () => {
     vi.useFakeTimers();
     const child = new FakeChildProcess();

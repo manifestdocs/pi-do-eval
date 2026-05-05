@@ -1,8 +1,10 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  collectBenchGateFailures,
   createBenchReport,
   createProfileBenchReport,
   type ProfileSuiteReport,
@@ -22,6 +24,7 @@ import {
   createSuiteReport,
   listSuiteModels,
   loadLatestSuiteReport,
+  loadLatestSuiteReportMatching,
   loadPreviousSuiteReport,
   updateSuiteIndex,
   writeSuiteReport,
@@ -30,6 +33,7 @@ import { listTrialNames, readTrialManifest } from "./trial-manifest.js";
 import type {
   AgentSnapshot,
   BenchConfig,
+  EvalEvent,
   EvalPlugin,
   EvalPluginConfigureContext,
   EvalReport,
@@ -43,6 +47,7 @@ import type {
   TrialVariant,
 } from "./types.js";
 import { defaultVerify } from "./verifier.js";
+import { createWorkspaceHandle } from "./workspace.js";
 
 export interface ProjectCommandOptions {
   projectPath?: string;
@@ -51,6 +56,14 @@ export interface ProjectCommandOptions {
   noJudge?: boolean;
   model?: string;
   provider?: string;
+  /** Suppress human-oriented console output. Use this when another UI owns stdout. */
+  quiet?: boolean;
+  /**
+   * Optional sink for live `EvalEvent`s emitted during the run. Wired through
+   * to `runEval`'s `live.emit`. Used by the TUI to drive its event bus; the
+   * web UI sets this via the SSE bridge in routes/api/projects/[projectId]/events.
+   */
+  emit?: (event: EvalEvent) => void;
 }
 
 export interface ProjectRunResult {
@@ -75,6 +88,8 @@ interface RunTrialOptions {
   totalEpochs?: number;
   noJudge?: boolean;
   worker?: ModelConfig;
+  emit?: (event: EvalEvent) => void;
+  quiet?: boolean;
 }
 
 function resolveEvalDir(inputPath?: string): string {
@@ -181,6 +196,18 @@ function profileRuntimeAgent(profile: ExecutionProfile, evalDir: string): Execut
   };
 }
 
+export function resolveWorkerModelLabel(options: {
+  sessionModelInfo?: { provider: string; model: string };
+  profile?: ExecutionProfile;
+  activeAgent?: ModelConfig;
+  activeWorker?: ModelConfig;
+}): string {
+  if (options.sessionModelInfo) return `${options.sessionModelInfo.provider}/${options.sessionModelInfo.model}`;
+  const configured = options.activeAgent ?? options.activeWorker;
+  if (configured?.provider && configured.model) return `${configured.provider}/${configured.model}`;
+  return options.profile?.id ?? configured?.model ?? "default";
+}
+
 function resolveLayerSource(layer: ProfileSetupLayer, evalDir: string): string {
   if (!layer.source) throw new Error(`Layer "${layer.id}" is missing a source path`);
   const source = path.isAbsolute(layer.source) ? layer.source : path.resolve(evalDir, layer.source);
@@ -227,13 +254,22 @@ function symlinkLayer(source: string, target: string): void {
   fs.symlinkSync(source, target, stat.isDirectory() ? "dir" : "file");
 }
 
-function prepareProfileWorkDir(evalDir: string, profile: ExecutionProfile | undefined, workDir: string): void {
+function log(options: { quiet?: boolean }, message = ""): void {
+  if (!options.quiet) console.log(message);
+}
+
+function prepareProfileWorkDir(
+  evalDir: string,
+  profile: ExecutionProfile | undefined,
+  workDir: string,
+  options: { quiet?: boolean } = {},
+): void {
   const layers = profile?.setup?.layers ?? [];
   for (const layer of layers) {
     const mode = layer.mode ?? (layer.kind === "plugin" ? "install" : "copy");
     if (layer.kind === "plugin" && mode === "install") {
       const source = resolveMarketplaceLayerSource(layer, evalDir);
-      console.log(`  Layer: ${layer.id} -> Codex marketplace ${source} (install)`);
+      log(options, `  Layer: ${layer.id} -> Codex marketplace ${source} (install)`);
       continue;
     }
     if (mode !== "copy" && mode !== "symlink")
@@ -242,7 +278,7 @@ function prepareProfileWorkDir(evalDir: string, profile: ExecutionProfile | unde
     const target = resolveLayerTarget(workDir, layer);
     if (mode === "copy") copyLayer(source, target);
     if (mode === "symlink") symlinkLayer(source, target);
-    console.log(`  Layer: ${layer.id} -> ${path.relative(workDir, target)} (${mode})`);
+    log(options, `  Layer: ${layer.id} -> ${path.relative(workDir, target)} (${mode})`);
   }
 }
 
@@ -259,6 +295,71 @@ function getSuite(ctx: ProjectContext, suiteName: string): SuiteDefinition {
   if (!suite)
     throw new Error(`Unknown suite "${suiteName}". Available: ${ctx.suites.map((entry) => entry.name).join(", ")}`);
   return suite;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function readIfPresent(filePath: string): string | undefined {
+  return fs.existsSync(filePath) && fs.statSync(filePath).isFile() ? fs.readFileSync(filePath, "utf-8") : undefined;
+}
+
+function hashDirectory(hash: crypto.Hash, root: string, prefix = ""): void {
+  if (!fs.existsSync(root)) return;
+  for (const entry of fs.readdirSync(root).sort()) {
+    if (entry === "node_modules" || entry === "runs" || entry === ".cache") continue;
+    const fullPath = path.join(root, entry);
+    const relative = prefix ? path.join(prefix, entry) : entry;
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      hashDirectory(hash, fullPath, relative);
+    } else if (stat.isFile()) {
+      hash.update(`file:${relative}\0`);
+      hash.update(fs.readFileSync(fullPath));
+      hash.update("\0");
+    }
+  }
+}
+
+function buildBaselineCacheKey(
+  ctx: ProjectContext,
+  suiteName: string,
+  suite: SuiteDefinition,
+  bench: BenchConfig,
+  profile: ExecutionProfile,
+  noJudge: boolean | undefined,
+): string {
+  const hash = crypto.createHash("sha256");
+  hash.update(
+    stableJson({
+      version: 1,
+      suiteName,
+      suite,
+      bench: { baseline: bench.baseline, epochs: bench.epochs, reuseBaseline: bench.reuseBaseline },
+      profile,
+      noJudge: noJudge === true,
+      config: readIfPresent(path.join(ctx.evalDir, "eval.config.ts")),
+      packageJson: readIfPresent(path.join(ctx.evalDir, "package.json")),
+    }),
+  );
+  hash.update("\0suite-file\0");
+  hash.update(readIfPresent(path.join(ctx.evalDir, "suites", `${suiteName}.yaml`)) ?? "");
+  hash.update("\0plugins\0");
+  hashDirectory(hash, path.join(ctx.evalDir, "plugins"));
+  hash.update("\0trials\0");
+  for (const entry of suite.trials) {
+    hashDirectory(hash, path.join(ctx.evalDir, "trials", entry.trial), path.join("trials", entry.trial));
+  }
+  return hash.digest("hex");
 }
 
 function getBench(ctx: ProjectContext, suiteName: string): BenchConfig {
@@ -326,6 +427,7 @@ async function runProjectTrial(
   const runId = generateRunId();
   const activeAgent = options.profile ? profileRuntimeAgent(options.profile, ctx.evalDir) : undefined;
   const activeWorker = options.profile ? profileWorkerSnapshot(options.profile) : (options.worker ?? ctx.config.worker);
+  const liveWorkerModel = resolveWorkerModelLabel({ profile: options.profile, activeAgent, activeWorker });
   const agentSnapshot: AgentSnapshot = {
     ...(activeWorker ? { worker: activeWorker } : {}),
     ...(!options.noJudge && ctx.config.judge ? { judge: ctx.config.judge } : {}),
@@ -348,7 +450,15 @@ async function runProjectTrial(
   const runDir = path.join(ctx.runsDir, runName);
   const workDir = path.join(runDir, "workdir");
   const trialDir = path.join(ctx.evalDir, "trials", trialName);
-  fs.mkdirSync(workDir, { recursive: true });
+  const workspace = await createWorkspaceHandle(ctx.config.workspace, {
+    evalDir: ctx.evalDir,
+    runsDir: ctx.runsDir,
+    runId,
+    runDir,
+    workDir,
+    trialName,
+    variantName,
+  });
 
   const taskFile = taskFileFor(manifest);
   const taskPath = path.join(trialDir, taskFile);
@@ -368,136 +478,163 @@ async function runProjectTrial(
 
   const prepareWorkDir = async (preparedWorkDir: string) => {
     stageTaskFile(trialDir, preparedWorkDir, taskFile);
-    if (options.profile) prepareProfileWorkDir(ctx.evalDir, options.profile, preparedWorkDir);
+    if (options.profile) prepareProfileWorkDir(ctx.evalDir, options.profile, preparedWorkDir, options);
   };
 
   const epochLabel =
     options.totalEpochs && options.totalEpochs > 1 ? ` [epoch ${options.epoch}/${options.totalEpochs}]` : "";
-  console.log(`Running ${trialName}/${variantName}${epochLabel}`);
-  console.log(`  Plugin: ${plugin.name}`);
-  console.log(`  Work dir: ${workDir}`);
-  if (options.profile) console.log(`  Profile: ${profileDisplayName(options.profile)}`);
+  log(options, `Running ${trialName}/${variantName}${epochLabel}`);
+  log(options, `  Plugin: ${plugin.name}`);
+  log(options, `  Work dir: ${workspace.workDir}`);
+  if (options.profile) log(options, `  Profile: ${profileDisplayName(options.profile)}`);
 
-  const result = await runEval({
-    trialDir,
-    workDir,
-    prompt,
-    extensionPath: plugin.extensionPath,
-    plugin,
-    timeoutMs: ctx.config.timeouts?.workerMs,
-    inactivityMs: ctx.config.timeouts?.inactivityMs,
-    provider: activeAgent?.provider ?? activeWorker?.provider,
-    model: activeAgent?.model ?? activeWorker?.model,
-    thinking: activeAgent?.thinking ?? activeWorker?.thinking,
-    agent: activeAgent,
-    prepareWorkDir,
-    live: {
+  try {
+    const result = await runEval({
+      trialDir,
+      workDir: workspace.workDir,
+      prompt,
+      extensionPath: plugin.extensionPath,
+      plugin,
+      timeoutMs: ctx.config.timeouts?.workerMs,
+      inactivityMs: ctx.config.timeouts?.inactivityMs,
+      provider: activeAgent?.provider ?? activeWorker?.provider,
+      model: activeAgent?.model ?? activeWorker?.model,
+      thinking: activeAgent?.thinking ?? activeWorker?.thinking,
+      agent: activeAgent,
+      prepareWorkDir,
+      live: {
+        runDir,
+        runsDir: ctx.runsDir,
+        emitCompletion: false,
+        meta: {
+          runId,
+          trial: trialName,
+          variant: variantName,
+          workerModel: liveWorkerModel,
+          agentSnapshot,
+          ...(options.suite ? { suite: options.suite, suiteRunId: options.suiteRunId } : {}),
+          ...(options.epoch ? { epoch: options.epoch, totalEpochs: options.totalEpochs } : {}),
+        },
+        ...(options.emit ? { emit: options.emit } : {}),
+      },
+    });
+
+    log(options, `  Worker: ${result.status} (exit ${result.exitCode})`);
+    if (result.stderr) fs.writeFileSync(path.join(runDir, "stderr.txt"), result.stderr);
+    fs.writeFileSync(path.join(runDir, "session.jsonl"), result.session.rawLines.join("\n"));
+
+    await plugin.afterRun?.({
+      evalDir: ctx.evalDir,
       runDir,
-      runsDir: ctx.runsDir,
+      workDir: workspace.workDir,
+      trialName,
+      variantName,
+      manifest,
+      variant,
+      session: result.session,
+    });
+
+    const verify = plugin.verify ? plugin.verify(workspace.workDir) : defaultVerify();
+    log(options, `  Verify: ${verify.passed ? "PASS" : "FAIL"}`);
+
+    let judgeResult: JudgeResult | undefined;
+    let judgeFailure: string | undefined;
+    if (!options.noJudge) {
+      log(options, "  Judge: evaluating...");
+      const judgeOutcome = await runJudge({
+        workDir: workspace.workDir,
+        prompt: plugin.buildJudgePrompt(taskDescription, workspace.workDir),
+        timeoutMs: ctx.config.timeouts?.judgeMs,
+        provider: ctx.config.judge?.provider,
+        model: ctx.config.judge?.model,
+        thinking: ctx.config.judge?.thinking,
+      });
+      if (judgeOutcome.ok) {
+        judgeResult = judgeOutcome.result;
+      } else {
+        judgeFailure = judgeOutcome.reason;
+        log(options, `  Judge: failed (${judgeFailure}), using deterministic scores only`);
+      }
+      if (judgeOutcome.stdout) fs.writeFileSync(path.join(runDir, "judge.stdout.txt"), judgeOutcome.stdout);
+    }
+
+    const scores = scoreSession({ session: result.session, verify, plugin, judgeResult, budgets: ctx.config.budgets });
+    const pluginResult = plugin.scoreSession(result.session, verify);
+    const findings = [
+      ...scores.issues,
+      ...pluginResult.findings,
+      ...(verify.passed ? [] : ["Verification failed"]),
+      ...(result.status === "completed" ? [] : [`Session ended with status: ${result.status}`]),
+      ...(judgeResult?.findings ?? []),
+      ...(judgeFailure ? [`Judge failed: ${judgeFailure}`] : []),
+    ];
+
+    const workerModel = resolveWorkerModelLabel({
+      sessionModelInfo: result.session.modelInfo,
+      profile: options.profile,
+      activeAgent,
+      activeWorker,
+    });
+    const report: EvalReport = {
       meta: {
         runId,
         trial: trialName,
         variant: variantName,
+        workerModel,
+        ...(judgeResult && ctx.config.judge?.model ? { judgeModel: ctx.config.judge.model } : {}),
+        startedAt: new Date(result.session.startTime).toISOString(),
+        durationMs: result.session.endTime - result.session.startTime,
+        status: result.status,
+        verifyPassed: verify.passed,
         agentSnapshot,
+        environment: captureEnvironment(),
         ...(options.suite ? { suite: options.suite, suiteRunId: options.suiteRunId } : {}),
         ...(options.epoch ? { epoch: options.epoch, totalEpochs: options.totalEpochs } : {}),
       },
-    },
-  });
+      scores,
+      ...(judgeResult ? { judgeResult } : {}),
+      session: { ...result.session, rawLines: [] },
+      findings,
+    };
 
-  console.log(`  Worker: ${result.status} (exit ${result.exitCode})`);
-  if (result.stderr) fs.writeFileSync(path.join(runDir, "stderr.txt"), result.stderr);
-  fs.writeFileSync(path.join(runDir, "session.jsonl"), result.session.rawLines.join("\n"));
-
-  await plugin.afterRun?.({
-    evalDir: ctx.evalDir,
-    runDir,
-    workDir,
-    trialName,
-    variantName,
-    manifest,
-    variant,
-    session: result.session,
-  });
-
-  const verify = plugin.verify ? plugin.verify(workDir) : defaultVerify();
-  console.log(`  Verify: ${verify.passed ? "PASS" : "FAIL"}`);
-
-  let judgeResult: JudgeResult | undefined;
-  let judgeFailure: string | undefined;
-  if (!options.noJudge) {
-    console.log("  Judge: evaluating...");
-    const judgeOutcome = await runJudge({
-      workDir,
-      prompt: plugin.buildJudgePrompt(taskDescription, workDir),
-      timeoutMs: ctx.config.timeouts?.judgeMs,
-      provider: ctx.config.judge?.provider,
-      model: ctx.config.judge?.model,
-      thinking: ctx.config.judge?.thinking,
-    });
-    if (judgeOutcome.ok) {
-      judgeResult = judgeOutcome.result;
-    } else {
-      judgeFailure = judgeOutcome.reason;
-      console.log(`  Judge: failed (${judgeFailure}), using deterministic scores only`);
-    }
-    if (judgeOutcome.stdout) fs.writeFileSync(path.join(runDir, "judge.stdout.txt"), judgeOutcome.stdout);
-  }
-
-  const scores = scoreSession({ session: result.session, verify, plugin, judgeResult, budgets: ctx.config.budgets });
-  const pluginResult = plugin.scoreSession(result.session, verify);
-  const findings = [
-    ...scores.issues,
-    ...pluginResult.findings,
-    ...(verify.passed ? [] : ["Verification failed"]),
-    ...(result.status === "completed" ? [] : [`Session ended with status: ${result.status}`]),
-    ...(judgeResult?.findings ?? []),
-    ...(judgeFailure ? [`Judge failed: ${judgeFailure}`] : []),
-  ];
-
-  const workerModel = result.session.modelInfo
-    ? `${result.session.modelInfo.provider}/${result.session.modelInfo.model}`
-    : (options.profile?.id ?? activeAgent?.model ?? activeWorker?.model ?? "default");
-  const report: EvalReport = {
-    meta: {
-      runId,
-      trial: trialName,
-      variant: variantName,
-      workerModel,
-      ...(judgeResult && ctx.config.judge?.model ? { judgeModel: ctx.config.judge.model } : {}),
-      startedAt: new Date(result.session.startTime).toISOString(),
-      durationMs: result.session.endTime - result.session.startTime,
+    writeReport(report, runDir);
+    updateRunIndex(ctx.runsDir, options.emit);
+    options.emit?.({
+      type: "run_completed",
+      timestamp: Date.now(),
+      dir: path.basename(runDir),
       status: result.status,
-      verifyPassed: verify.passed,
-      agentSnapshot,
-      environment: captureEnvironment(),
-      ...(options.suite ? { suite: options.suite, suiteRunId: options.suiteRunId } : {}),
-      ...(options.epoch ? { epoch: options.epoch, totalEpochs: options.totalEpochs } : {}),
-    },
-    scores,
-    ...(judgeResult ? { judgeResult } : {}),
-    session: { ...result.session, rawLines: [] },
-    findings,
-  };
-
-  writeReport(report, runDir);
-  updateRunIndex(ctx.runsDir);
-  printSummary(report);
-  return { report, runDir: path.basename(runDir) };
+      overall: scores.overall,
+      durationMs: report.meta.durationMs,
+    });
+    if (!options.quiet) printSummary(report);
+    return { report, runDir: path.basename(runDir) };
+  } finally {
+    await workspace.cleanup();
+  }
 }
 
 async function runSuiteForProfile(
   ctx: ProjectContext,
   suiteName: string,
   profile: ExecutionProfile | undefined,
-  options: { suiteRunId: string; label: string; epochs?: number; noJudge?: boolean; worker?: ModelConfig },
+  options: {
+    suiteRunId: string;
+    label: string;
+    cacheKey?: string;
+    epochs?: number;
+    noJudge?: boolean;
+    worker?: ModelConfig;
+    emit?: (event: EvalEvent) => void;
+    quiet?: boolean;
+  },
 ): Promise<ProfileSuiteReport | SuiteReport> {
   const suite = getSuite(ctx, suiteName);
   const globalEpochs = options.epochs ?? ctx.config.epochs ?? 1;
   const allResults: ProjectRunResult[] = [];
   let maxEpochs = 1;
 
-  console.log(`\n=== ${options.label}${profile ? `: ${profileDisplayName(profile)}` : ""} ===\n`);
+  log(options, `\n=== ${options.label}${profile ? `: ${profileDisplayName(profile)}` : ""} ===\n`);
   for (const entry of suite.trials) {
     const epochs = globalEpochs;
     maxEpochs = Math.max(maxEpochs, epochs);
@@ -510,6 +647,8 @@ async function runSuiteForProfile(
           suiteRunId: options.suiteRunId,
           noJudge: options.noJudge,
           worker: options.worker,
+          ...(options.emit ? { emit: options.emit } : {}),
+          ...(options.quiet ? { quiet: options.quiet } : {}),
           ...(epochs > 1 ? { epoch, totalEpochs: epochs } : {}),
         }),
       );
@@ -524,6 +663,7 @@ async function runSuiteForProfile(
     new Date().toISOString(),
     maxEpochs > 1 ? maxEpochs : undefined,
     workerModel,
+    options.cacheKey,
   );
 
   if (!profile) {
@@ -531,7 +671,7 @@ async function runSuiteForProfile(
     if (previous) {
       const comparison = compareSuiteReports(suiteReport, previous, { threshold: ctx.config.regressions?.threshold });
       suiteReport.comparison = comparison;
-      printSuiteComparison(comparison, workerModel);
+      if (!options.quiet) printSuiteComparison(comparison, workerModel);
       if (comparison.hasRegression) process.exitCode = 1;
     }
   }
@@ -540,8 +680,10 @@ async function runSuiteForProfile(
   updateSuiteIndex(ctx.runsDir);
   if (suiteReport.aggregated) {
     const modelLabel = workerModel ? ` [${workerModel}]` : "";
-    console.log(`\n--- Aggregated Results${modelLabel} ---`);
-    for (const entry of suiteReport.aggregated) printAggregatedSummary(entry);
+    log(options, `\n--- Aggregated Results${modelLabel} ---`);
+    if (!options.quiet) {
+      for (const entry of suiteReport.aggregated) printAggregatedSummary(entry);
+    }
   }
 
   return profile ? { profile, report: suiteReport } : suiteReport;
@@ -587,6 +729,8 @@ export async function runProjectTrialCommand(trialName: string, options: Project
     variant: options.variant,
     noJudge: options.noJudge,
     worker: buildRunWorker(ctx, options),
+    ...(options.emit ? { emit: options.emit } : {}),
+    ...(options.quiet ? { quiet: options.quiet } : {}),
   });
 }
 
@@ -603,6 +747,8 @@ export async function runProjectRegressionCommand(
     label: `Regression ${suiteName}`,
     noJudge: options.noJudge,
     worker: buildRunWorker(ctx, options),
+    ...(options.emit ? { emit: options.emit } : {}),
+    ...(options.quiet ? { quiet: options.quiet } : {}),
   });
 }
 
@@ -613,18 +759,44 @@ export async function runProjectBenchCommand(suiteName: string, options: Project
     return;
   }
   const configuredBench = getBench(ctx, suiteName);
+  const suite = getSuite(ctx, suiteName);
   const profiles = configuredBench.profiles.map((profileId) => getProfile(ctx, profileId));
   const benchRunId = `bench-${Date.now()}-${safeName(suiteName)}`;
   const benchStartedAt = new Date().toISOString();
   const profileReports: ProfileSuiteReport[] = [];
 
   for (const profile of profiles) {
+    const canReuseBaseline =
+      configuredBench.reuseBaseline !== false &&
+      configuredBench.baseline !== undefined &&
+      profile.id === configuredBench.baseline;
+    const cacheKey = canReuseBaseline
+      ? buildBaselineCacheKey(ctx, suiteName, suite, configuredBench, profile, options.noJudge)
+      : undefined;
+    const cached = cacheKey
+      ? loadLatestSuiteReportMatching(
+          ctx.runsDir,
+          suiteName,
+          profile.id,
+          (report) => report.cacheKey === cacheKey && report.summary.totalRuns > 0,
+        )
+      : undefined;
+
+    if (cached) {
+      if (!options.quiet) console.log(`Reusing cached baseline ${profile.id}: ${cached.suiteRunId}`);
+      profileReports.push({ profile, report: cached });
+      continue;
+    }
+
     const suiteRunId = `suite-${Date.now()}-${safeName(suiteName)}-${safeName(profile.id)}`;
     const suiteReport = await runSuiteForProfile(ctx, suiteName, profile, {
       suiteRunId,
       label: `Bench ${suiteName}`,
+      ...(cacheKey ? { cacheKey } : {}),
       ...(configuredBench.epochs !== undefined ? { epochs: configuredBench.epochs } : {}),
       noJudge: options.noJudge,
+      ...(options.emit ? { emit: options.emit } : {}),
+      ...(options.quiet ? { quiet: options.quiet } : {}),
     });
     profileReports.push(suiteReport as ProfileSuiteReport);
   }
@@ -637,9 +809,16 @@ export async function runProjectBenchCommand(suiteName: string, options: Project
     new Date().toISOString(),
     configuredBench.baseline,
   );
-  printBenchComparison(benchReport);
+  if (!options.quiet) printBenchComparison(benchReport);
   writeBenchReport(benchReport, ctx.runsDir);
   updateBenchIndex(ctx.runsDir);
+
+  const gateFailures = collectBenchGateFailures(profileReports, configuredBench);
+  if (gateFailures.length > 0) {
+    process.exitCode = 1;
+    console.error("\nBenchmark gate failures:");
+    for (const failure of gateFailures) console.error(`  - ${failure}`);
+  }
 }
 
 export async function runProjectModelBenchCommand(
@@ -661,6 +840,8 @@ export async function runProjectModelBenchCommand(
       label: `Bench ${suiteName}: ${modelLabel}`,
       noJudge: options.noJudge,
       worker: model,
+      ...(options.emit ? { emit: options.emit } : {}),
+      ...(options.quiet ? { quiet: options.quiet } : {}),
     })) as SuiteReport;
     suiteReportsMap.set(suiteReport.workerModel ?? modelLabel, suiteReport);
   }
@@ -674,7 +855,7 @@ export async function runProjectModelBenchCommand(
     throw new Error(`No suite runs found. Run a regression first with: do-eval regression ${suiteName}`);
 
   const benchReport = createBenchReport(suiteName, benchRunId, suiteReportsMap, benchStartedAt);
-  printBenchComparison(benchReport);
+  if (!options.quiet) printBenchComparison(benchReport);
   writeBenchReport(benchReport, ctx.runsDir);
   updateBenchIndex(ctx.runsDir);
 }

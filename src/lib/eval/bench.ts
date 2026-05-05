@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { parseJsonWith } from "../contracts/codec.js";
 import { benchReportCodec } from "../contracts/domain.js";
 import type {
+  BenchConfig,
   BenchEntry,
   BenchIndexEntry,
   BenchReport,
@@ -25,6 +26,32 @@ function roundToTenth(value: number): number {
 export interface ProfileSuiteReport {
   profile: ExecutionProfile | ExecutionProfileSnapshot;
   report: SuiteReport;
+}
+
+export function collectBenchGateFailures(profileReports: ProfileSuiteReport[], bench: BenchConfig): string[] {
+  const failures: string[] = [];
+  const requiredDeterministicScores = bench.requiredDeterministicScores ?? {};
+
+  for (const { profile, report } of profileReports) {
+    for (const entry of report.entries) {
+      const label = `${profile.id} ${entry.trial}/${entry.variant}`;
+      if (bench.requireJudge && !entry.judge) {
+        const judgeFinding = entry.findings.find((finding) => finding.startsWith("Judge failed:"));
+        failures.push(`${label}: judge result required but missing${judgeFinding ? ` (${judgeFinding})` : ""}`);
+      }
+
+      for (const [metric, minimum] of Object.entries(requiredDeterministicScores)) {
+        const actual = entry.deterministic[metric];
+        if (actual === undefined) {
+          failures.push(`${label}: deterministic score "${metric}" required but missing`);
+        } else if (actual < minimum) {
+          failures.push(`${label}: deterministic score "${metric}" ${actual} is below required ${minimum}`);
+        }
+      }
+    }
+  }
+
+  return failures;
 }
 
 function snapshotProfile(profile: ExecutionProfile | ExecutionProfileSnapshot): ExecutionProfileSnapshot {

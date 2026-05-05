@@ -8,12 +8,19 @@ export function packageJson(extensionName: string, doEvalRef: string): string {
       description: `Eval suite for ${extensionName}`,
       type: "module",
       scripts: {
-        bench: "do-eval bench small --project .",
-        regression: "do-eval regression small --project .",
-        trial: "do-eval trial --project .",
-        list: "do-eval list --project .",
+        eval: "do-eval tui --project .",
+        "eval:list": "do-eval list --project .",
+        "eval:trial": "do-eval trial --project .",
+        "eval:regression": "do-eval regression small --project .",
+        "eval:bench": "do-eval bench small --project .",
+        "eval:web": "do-eval ui --project .",
+        list: "npm run eval:list",
+        trial: "npm run eval:trial --",
+        regression: "npm run eval:regression",
+        bench: "npm run eval:bench",
         test: "vitest run",
-        view: "do-eval ui --project .",
+        tui: "npm run eval",
+        view: "npm run eval:web",
       },
       dependencies: {
         "do-eval": doEvalRef,
@@ -142,6 +149,9 @@ const config: ProjectEvalConfig = {
     judgeMs: 2 * 60 * 1000,
   },
   // epochs: 3,  // Run each trial N times to measure stability on the same task
+  // workspace: {
+  //   provider: "local-fs", // or "agentfs-fuse" to mount one AgentFS-backed workdir per run
+  // },
   // budgets: {
   //   maxTotalTokens: 100_000,
   //   maxDurationMs: 5 * 60 * 1000,

@@ -54,6 +54,7 @@ export {
   getSuiteDirName,
   listSuiteModels,
   loadLatestSuiteReport,
+  loadLatestSuiteReportMatching,
   loadPreviousSuiteReport,
   loadSuiteReport,
   summarizeSuiteEntries,
@@ -93,6 +94,7 @@ export type {
   JudgeOutcome,
   JudgeResult,
   JudgeScoreConfig,
+  LauncherBenchDef,
   LauncherConfig,
   LauncherSuiteDef,
   LauncherTrial,
@@ -121,5 +123,7 @@ export type {
   TrialManifest,
   TrialVariant,
   VerifyResult,
+  WorkspaceConfig,
+  WorkspaceProviderKind,
 } from "./types.js";
 export { defaultVerify } from "./verifier.js";

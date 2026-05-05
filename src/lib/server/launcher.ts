@@ -195,7 +195,8 @@ export function spawnRun(
   projectId: string,
   request: RunRequest,
   runCommand: string,
-  cwd: string,
+  evalDir: string,
+  runsDir: string,
   config: LauncherConfig,
 ): { ok: true; id: string } | { ok: false; error: string } {
   const activeRun = activeRuns.get(projectId);
@@ -214,16 +215,16 @@ export function spawnRun(
     return { ok: false, error: "Launcher command is empty" };
   }
   const baseArgs = parts.slice(1);
-  const runArgs = buildArgs(request, cwd);
+  const runArgs = buildArgs(request, evalDir);
   const allArgs = [...baseArgs, ...runArgs];
 
   const id = `run-${Date.now()}`;
   const command = `${runCommand} ${runArgs.join(" ")}`;
-  const runDir = path.join(cwd, "runs", id);
+  const runDir = path.join(runsDir, id);
   fs.mkdirSync(runDir, { recursive: true });
 
   const child = spawn(cmd, allArgs, {
-    cwd,
+    cwd: evalDir,
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env },
   });

@@ -136,6 +136,9 @@ describe("agent harnesses", () => {
       "Do the task",
     ]);
     expect(spec.env?.CODEX_HOME).toBeUndefined();
+    expect(spec.env?.CODEX_THREAD_ID).toBeUndefined();
+    expect(spec.env?.CODEX_INTERNAL_ORIGINATOR_OVERRIDE).toBeUndefined();
+    expect(spec.env?.CODEX_SHELL).toBeUndefined();
   });
 
   it("builds an isolated Codex command without ignoring user config by default", () => {
@@ -154,6 +157,7 @@ describe("agent harnesses", () => {
     });
 
     expect(spec.env?.CODEX_HOME).toContain(path.join(os.tmpdir(), "do-eval-codex-home"));
+    expect(spec.env?.HOME).toBe(spec.env?.CODEX_HOME);
     const relativeHome = path.relative(workDir, spec.env?.CODEX_HOME ?? "");
     expect(relativeHome.startsWith("..") || path.isAbsolute(relativeHome)).toBe(true);
     // isolateHome alone no longer forces --ignore-user-config; the per-run
@@ -180,6 +184,7 @@ describe("agent harnesses", () => {
     });
 
     expect(spec.args).toContain("--ignore-user-config");
+    expect(spec.env?.HOME).toBe(spec.env?.CODEX_HOME);
   });
 });
 

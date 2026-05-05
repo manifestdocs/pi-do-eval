@@ -10,6 +10,7 @@ import type {
   EvalSession,
   ExecutionProfileSnapshot,
   JudgeResult,
+  LauncherBenchDef,
   LauncherConfig,
   LauncherSuiteDef,
   LauncherTrial,
@@ -599,6 +600,27 @@ function parseLauncherSuiteDef(value: unknown, path: string): ParseResult<Launch
   });
 }
 
+function parseLauncherBenchDef(value: unknown, path: string): ParseResult<LauncherBenchDef> {
+  const object = asObject(value, path);
+  if (!object.ok) return failIssues(object.issues);
+  const name = asString(object.value.name, `${path}.name`);
+  const description = asOptionalString(object.value.description, `${path}.description`);
+  const profiles = asStringArray(object.value.profiles, `${path}.profiles`);
+  const baseline = asOptionalString(object.value.baseline, `${path}.baseline`);
+  const epochs = asOptionalFiniteNumber(object.value.epochs, `${path}.epochs`);
+  const trialCount = asOptionalFiniteNumber(object.value.trialCount, `${path}.trialCount`);
+  const issues = mergeIssues(name, description, profiles, baseline, epochs, trialCount);
+  if (issues.length > 0) return failIssues(issues);
+  return ok({
+    name: name.value,
+    ...(description.value ? { description: description.value } : {}),
+    profiles: profiles.value,
+    ...(baseline.value ? { baseline: baseline.value } : {}),
+    ...(epochs.value !== undefined ? { epochs: epochs.value } : {}),
+    ...(trialCount.value !== undefined ? { trialCount: trialCount.value } : {}),
+  });
+}
+
 export const launcherConfigCodec: JsonCodec<LauncherConfig> = {
   parse(value) {
     const object = asObject(value, "launcherConfig");
@@ -623,6 +645,12 @@ export const launcherConfigCodec: JsonCodec<LauncherConfig> = {
         : Array.isArray(object.value.suiteDefs)
           ? parseArray(object.value.suiteDefs, "launcherConfig.suiteDefs", parseLauncherSuiteDef)
           : fail("launcherConfig.suiteDefs must be an array");
+    const benchDefs =
+      object.value.benchDefs === undefined
+        ? ok(undefined)
+        : Array.isArray(object.value.benchDefs)
+          ? parseArray(object.value.benchDefs, "launcherConfig.benchDefs", parseLauncherBenchDef)
+          : fail("launcherConfig.benchDefs must be an array");
     const defaultLaunchType =
       object.value.defaultLaunchType === undefined
         ? ok(undefined)
@@ -642,6 +670,7 @@ export const launcherConfigCodec: JsonCodec<LauncherConfig> = {
       budgets,
       regressionThreshold,
       suiteDefs,
+      benchDefs,
       defaultLaunchType,
     );
     if (issues.length > 0) return failIssues(issues);
@@ -655,6 +684,7 @@ export const launcherConfigCodec: JsonCodec<LauncherConfig> = {
       trials: trials.map((entry) => entry.value),
       suites,
       ...(suiteDefs.value ? { suiteDefs: suiteDefs.value } : {}),
+      ...(benchDefs.value ? { benchDefs: benchDefs.value } : {}),
       models: models.value,
       ...(defaultWorker.value ? { defaultWorker: defaultWorker.value } : {}),
       ...(judge.value ? { judge: judge.value } : {}),

@@ -103,6 +103,18 @@ export interface BenchConfig {
   profiles: string[];
   baseline?: string;
   epochs?: number;
+  reuseBaseline?: boolean;
+  requireJudge?: boolean;
+  requiredDeterministicScores?: Record<string, number>;
+}
+
+export type WorkspaceProviderKind = "local-fs" | "agentfs-fuse";
+
+export interface WorkspaceConfig {
+  provider: WorkspaceProviderKind;
+  root?: string;
+  agentfsCommand?: string;
+  mountTimeoutMs?: number;
 }
 
 export interface ProjectEvalConfig {
@@ -125,6 +137,7 @@ export interface ProjectEvalConfig {
   defaultProfile?: string;
   defaultPlugin?: string;
   runsDir?: string;
+  workspace?: WorkspaceConfig;
 }
 
 export interface EvalPluginBuildPromptContext<TVariant extends TrialVariant = TrialVariant> {
@@ -294,6 +307,7 @@ export interface SuiteReport {
   suite: string;
   suiteRunId: string;
   workerModel?: string;
+  cacheKey?: string;
   startedAt: string;
   completedAt: string;
   entries: SuiteReportEntry[];
@@ -385,6 +399,7 @@ export type EvalEvent =
   | (EvalEventBase & {
       type: "run_started";
       dir: string;
+      runsDir?: string;
       trial: string;
       variant: string;
       suite?: string;
@@ -536,12 +551,22 @@ export interface LauncherSuiteDef {
   source: SuiteSource;
 }
 
+export interface LauncherBenchDef {
+  name: string;
+  description?: string;
+  profiles: string[];
+  baseline?: string;
+  epochs?: number;
+  trialCount?: number;
+}
+
 export type LaunchType = "suite" | "trial" | "bench";
 
 export interface LauncherConfig {
   trials: LauncherTrial[];
   suites: Record<string, Array<{ trial: string; variant: string }>>;
   suiteDefs?: LauncherSuiteDef[];
+  benchDefs?: LauncherBenchDef[];
   models: Array<{ provider?: string; model?: string }>;
   defaultWorker?: { provider?: string; model?: string };
   judge?: { provider?: string; model?: string };

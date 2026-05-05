@@ -3,7 +3,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { stringify } from "yaml";
-import { getRunCommandForEvalDir, loadLauncherConfigFromEvalDir } from "../src/lib/server/harness.js";
+import {
+  getRunCommandForEvalDir,
+  loadLauncherConfigFromEvalDir,
+  resolveRunsDirFromEvalDir,
+} from "../src/lib/server/harness.js";
 
 let tmpDir: string | null = null;
 
@@ -35,6 +39,21 @@ describe("getRunCommandForEvalDir", () => {
     const evalDir = makeEvalDir();
 
     expect(getRunCommandForEvalDir(evalDir)).toBe("do-eval");
+  });
+});
+
+describe("resolveRunsDirFromEvalDir", () => {
+  it("matches the project runner's configured runs directory", async () => {
+    const evalDir = makeEvalDir();
+    fs.writeFileSync(path.join(evalDir, "eval.config.ts"), "export default { runsDir: '../custom-runs' };\n");
+
+    await expect(resolveRunsDirFromEvalDir(evalDir)).resolves.toBe(path.join(tmpDir as string, "custom-runs"));
+  });
+
+  it("defaults to eval/runs", async () => {
+    const evalDir = makeEvalDir();
+
+    await expect(resolveRunsDirFromEvalDir(evalDir)).resolves.toBe(path.join(evalDir, "runs"));
   });
 });
 
@@ -90,6 +109,36 @@ describe("loadLauncherConfigFromEvalDir", () => {
     const config = await loadLauncherConfigFromEvalDir(evalDir);
 
     expect(config?.defaultLaunchType).toBe("bench");
+  });
+
+  it("exposes configured benches for launch surfaces", async () => {
+    const evalDir = makeEvalDir();
+    writeSuite(evalDir, "quick", {
+      name: "quick",
+      description: "Fast check",
+      trials: ["example"],
+    });
+    fs.writeFileSync(
+      path.join(evalDir, "eval.config.ts"),
+      [
+        "export default {",
+        "  benches: { quick: { profiles: ['baseline', 'treatment'], baseline: 'baseline', epochs: 2 } },",
+        "};",
+      ].join("\n"),
+    );
+
+    const config = await loadLauncherConfigFromEvalDir(evalDir);
+
+    expect(config?.benchDefs).toEqual([
+      {
+        name: "quick",
+        description: "Fast check",
+        profiles: ["baseline", "treatment"],
+        baseline: "baseline",
+        epochs: 2,
+        trialCount: 1,
+      },
+    ]);
   });
 
   it("omits defaultLaunchType when the project does not specify one", async () => {

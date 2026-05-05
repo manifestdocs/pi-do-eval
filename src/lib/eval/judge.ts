@@ -162,17 +162,36 @@ export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
     });
 
     let stdout = "";
+    let stdoutBuffer = "";
     let settled = false;
 
-    function finish(outcome: JudgeOutcome) {
+    function finish(outcome: JudgeOutcome, terminate = false) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (terminate) proc.kill("SIGTERM");
       resolve(outcome);
     }
 
     proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split("\n");
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (isCompletionEvent(line)) {
+          const outcome = finalizeJudgeOutcome(stdout);
+          if (outcome.ok) {
+            finish(outcome, true);
+            return;
+          }
+        }
+      }
+    });
+
+    proc.stderr.on("data", () => {
+      // Drain stderr so a noisy judge process cannot block on an unread pipe.
     });
 
     proc.on("close", () => finish(finalizeJudgeOutcome(stdout)));
@@ -186,20 +205,39 @@ export async function runJudge(opts: JudgeOptions): Promise<JudgeOutcome> {
   });
 }
 
+function isCompletionEvent(line: string): boolean {
+  try {
+    const event = JSON.parse(line);
+    if (event.type === "agent_end" || event.type === "turn_end") return true;
+    if (event.type !== "message_end") return false;
+    return event.message?.role === "assistant";
+  } catch {
+    return false;
+  }
+}
+
 function extractAssistantText(jsonlOutput: string): string {
   const parts: string[] = [];
+  let fallbackParts: string[] = [];
   for (const line of jsonlOutput.split("\n")) {
     if (!line.trim()) continue;
     try {
       const event = JSON.parse(line);
-      if ((event.type === "message_end" || event.type === "message") && event.message?.role === "assistant") {
-        for (const block of event.message.content ?? []) {
+      const message = event.message ?? event.assistantMessageEvent?.partial;
+      if ((event.type === "message_end" || event.type === "message") && message?.role === "assistant") {
+        for (const block of message.content ?? []) {
           if (block.type === "text" && block.text) parts.push(block.text);
         }
+      } else if (event.type === "message_update" && message?.role === "assistant") {
+        const textBlocks: string[] = [];
+        for (const block of message.content ?? []) {
+          if (block.type === "text" && block.text) textBlocks.push(block.text);
+        }
+        if (textBlocks.length > 0) fallbackParts = textBlocks;
       }
     } catch {
       // Non-JSON lines in JSONL output are expected (e.g. startup banners)
     }
   }
-  return parts.join("\n");
+  return (parts.length > 0 ? parts : fallbackParts).join("\n");
 }

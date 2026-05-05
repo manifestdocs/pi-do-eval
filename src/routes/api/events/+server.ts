@@ -9,10 +9,11 @@ export const GET: RequestHandler = () => {
   }
 
   let unsubscribe: (() => void) | null = null;
+  let cancelled = false;
   const stream = new ReadableStream({
-    start(controller) {
+    async start(controller) {
       const encoder = new TextEncoder();
-      unsubscribe = projectWatchers.subscribe(project.id, (event) => {
+      const nextUnsubscribe = await projectWatchers.subscribe(project.id, (event) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         } catch {
@@ -20,12 +21,18 @@ export const GET: RequestHandler = () => {
           unsubscribe = null;
         }
       });
+      if (cancelled) {
+        nextUnsubscribe?.();
+        return;
+      }
+      unsubscribe = nextUnsubscribe;
 
       if (!unsubscribe) {
         controller.close();
       }
     },
     cancel() {
+      cancelled = true;
       unsubscribe?.();
       unsubscribe = null;
     },

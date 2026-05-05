@@ -33,9 +33,12 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "lint": "biome check",
-    "lint:fix": "biome check --write"
+    "lint:fix": "biome check --write",
+    "docs:serve": "uvx --from mkdocs --with mkdocs-material mkdocs serve -a 127.0.0.1:8001",
+    "docs:build": "uvx --from mkdocs --with mkdocs-material mkdocs build --strict"
   },
   "dependencies": {
+    "@mariozechner/pi-tui": "^0.67.68",
     "tsx": "^4.21.0",
     "yaml": "^2.8.4"
   },

@@ -18,7 +18,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
   try {
     const { registry } = addOrUpdateProject(body.value.path);
-    projectWatchers.syncProjects(registry.projects);
+    await projectWatchers.syncProjects(registry.projects);
     return json(registry);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to add project";

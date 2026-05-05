@@ -27,6 +27,7 @@ export const codexHarness: AgentHarness = {
 
   prepare(ctx) {
     const codexHome = resolveEffectiveCodexHome(ctx.workDir, ctx.agent);
+    const homeEnv = resolveHomeEnv(ctx.workDir, ctx.agent, codexHome);
     prepareCodexHome(ctx.workDir, ctx.agent, codexHome);
 
     for (const marketplace of ctx.agent?.codex?.pluginMarketplaces ?? []) {
@@ -35,6 +36,7 @@ export const codexHarness: AgentHarness = {
           ...process.env,
           ...ctx.agent?.env,
           ...ctx.agent?.codex?.env,
+          ...(homeEnv ? { HOME: homeEnv } : {}),
           ...(codexHome ? { CODEX_HOME: codexHome } : {}),
         },
         encoding: "utf-8",
@@ -48,6 +50,7 @@ export const codexHarness: AgentHarness = {
 
   buildWorkerCommand(ctx: WorkerCommandContext) {
     const codexHome = resolveEffectiveCodexHome(ctx.workDir, ctx.agent);
+    const homeEnv = resolveHomeEnv(ctx.workDir, ctx.agent, codexHome);
     const args = [
       "--ask-for-approval",
       "never",
@@ -73,6 +76,10 @@ export const codexHarness: AgentHarness = {
       env: {
         ...ctx.agent?.env,
         ...ctx.agent?.codex?.env,
+        CODEX_THREAD_ID: undefined,
+        CODEX_INTERNAL_ORIGINATOR_OVERRIDE: undefined,
+        CODEX_SHELL: undefined,
+        ...(homeEnv ? { HOME: homeEnv } : {}),
         ...(codexHome ? { CODEX_HOME: codexHome } : {}),
       },
     };
@@ -124,6 +131,15 @@ function prepareCodexHome(workDir: string, agent: WorkerCommandContext["agent"],
 function cleanupCodexHome(workDir: string, agent: WorkerCommandContext["agent"]): void {
   if (!agent?.codex?.isolateHome || agent.codex.home) return;
   fs.rmSync(isolatedCodexHomeForWorkDir(workDir), { recursive: true, force: true });
+}
+
+function resolveHomeEnv(
+  workDir: string,
+  agent: WorkerCommandContext["agent"],
+  codexHome: string | undefined,
+): string | undefined {
+  if (!agent?.codex?.isolateHome || agent.codex.home) return undefined;
+  return codexHome ?? isolatedCodexHomeForWorkDir(workDir);
 }
 
 function resolveCodexAuthHome(agent: WorkerCommandContext["agent"]): string {

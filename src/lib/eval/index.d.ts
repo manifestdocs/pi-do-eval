@@ -112,6 +112,18 @@ export interface BenchConfig {
   profiles: string[];
   baseline?: string;
   epochs?: number;
+  reuseBaseline?: boolean;
+  requireJudge?: boolean;
+  requiredDeterministicScores?: Record<string, number>;
+}
+
+export type WorkspaceProviderKind = "local-fs" | "agentfs-fuse";
+
+export interface WorkspaceConfig {
+  provider: WorkspaceProviderKind;
+  root?: string;
+  agentfsCommand?: string;
+  mountTimeoutMs?: number;
 }
 
 export interface ProfileLayer {
@@ -166,6 +178,7 @@ export interface ProjectEvalConfig {
   defaultProfile?: string;
   defaultPlugin?: string;
   runsDir?: string;
+  workspace?: WorkspaceConfig;
 }
 
 export interface EvalPluginBuildPromptContext<TVariant extends TrialVariant = TrialVariant> {

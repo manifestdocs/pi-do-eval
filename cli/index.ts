@@ -1,6 +1,4 @@
 #!/usr/bin/env bun
-import { spawn } from "node:child_process";
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { stringify } from "yaml";
 import { suiteDefinitionCodec } from "../src/lib/contracts/domain.js";
@@ -27,14 +25,15 @@ import {
   setActiveProject,
 } from "../src/lib/server/projects.js";
 import { runInit } from "./init.js";
+import { runTuiCommand } from "./tui.js";
+import { ensureBuild, startUiDevServerForeground, startUiServerForeground } from "./web.js";
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
-const packageDir = path.resolve(import.meta.dirname, "..");
-const buildEntry = path.join(packageDir, "build", "index.js");
-
 if (command === "init") {
   await runInit();
+} else if (command === "tui") {
+  await runTuiCommand(args);
 } else if (command === "ui" || command === "view") {
   const port = parseInt(readOption(args, "--port") ?? process.env.EVAL_PORT ?? "4242", 10);
   const explicitProject = readOption(args, "--project");
@@ -45,8 +44,13 @@ if (command === "init") {
     ensureProjectSelected(process.cwd(), false);
   }
 
-  await ensureBuild();
-  startUiServer(port);
+  try {
+    await ensureBuild();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Failed to build web viewer");
+    process.exit(1);
+  }
+  startUiServerForeground(port);
 } else if (command === "ui-dev") {
   const port = parseInt(readOption(args, "--port") ?? process.env.EVAL_PORT ?? "4242", 10);
   const host = readOption(args, "--host") ?? process.env.HOST ?? "127.0.0.1";
@@ -58,7 +62,7 @@ if (command === "init") {
     ensureProjectSelected(process.cwd(), false);
   }
 
-  startUiDevServer(host, port);
+  startUiDevServerForeground(host, port);
 } else if (command === "project") {
   await handleProjectCommand(args);
 } else if (command === "list") {
@@ -76,8 +80,9 @@ if (command === "init") {
   console.log("");
   console.log("Commands:");
   console.log("  init                     Scaffold an eval harness in the current directory");
-  console.log("  ui [--project <path>]    Start the global eval viewer");
-  console.log("  ui-dev [--project <path>] Start the global viewer in Vite dev mode");
+  console.log("  tui [--project <path>] [--port <port>] [--no-web] Start launcher/current-state TUI");
+  console.log("  ui [--project <path>] [--port <port>] Start the global eval viewer (web, deprecated; prefer tui)");
+  console.log("  ui-dev [--project <path>] [--port <port>] Start the global viewer in Vite dev mode");
   console.log("  view                     Alias for ui");
   console.log("  list [--project <path>]  List trials, suites, profiles, and benches");
   console.log("  trial <trial>            Run one trial");
@@ -419,42 +424,6 @@ function ensureProjectSelected(identifier: string, strict: boolean): RegisteredP
     console.error(message);
     process.exit(1);
   }
-}
-
-async function ensureBuild() {
-  if (fs.existsSync(buildEntry)) {
-    return;
-  }
-
-  const build = spawn("bun", ["run", "build"], {
-    cwd: packageDir,
-    stdio: "inherit",
-    env: { ...process.env },
-  });
-  const code = await new Promise<number | null>((resolve) => build.on("exit", resolve));
-  if (code !== 0 || !fs.existsSync(buildEntry)) {
-    process.exit(code ?? 1);
-  }
-}
-
-function startUiServer(port: number) {
-  const server = spawn("bun", [buildEntry], {
-    cwd: packageDir,
-    stdio: "inherit",
-    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port) },
-  });
-  server.on("exit", (code) => process.exit(code ?? 0));
-  console.log(`Eval viewer: http://localhost:${port}`);
-}
-
-function startUiDevServer(host: string, port: number) {
-  const server = spawn("npm", ["run", "dev", "--", "--host", host, "--port", String(port)], {
-    cwd: packageDir,
-    stdio: "inherit",
-    env: { ...process.env },
-  });
-  server.on("exit", (code) => process.exit(code ?? 0));
-  console.log(`Eval viewer dev server: http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
 }
 
 function readOption(values: string[], optionName: string): string | null {
